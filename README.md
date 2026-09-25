@@ -1,4 +1,5 @@
 # ATT — Atualizador Automático para Windows
+![image](https://github.com/FernandoAAB/ATT/blob/main/Doc/Diagrama.png)
 
 Este é um utilitário leve e moderno desenvolvido em **Python** utilizando a biblioteca **Tkinter**. O objetivo principal do script é automatizar a atualização de todos os softwares instalados no Windows através do gerenciador de pacotes nativo do sistema (`winget`), exibindo notificações flutuantes personalizadas e animadas em segundo plano.
 
