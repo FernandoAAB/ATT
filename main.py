@@ -1,158 +1,375 @@
-import tkinter as tk
-import subprocess
+"""ATT — painel de atualizações para Windows, construído com Tkinter."""
+
 import platform
+import queue
 import sys
+import threading
+import tkinter as tk
+from tkinter import messagebox
 
-def mostrar_mensagem(mensagem, duracao_ms, tipo="info"):
-    # Exibe uma janela flutuante moderna com mensagem temporária.
-    # tipo: "info" | "erro" | "aviso"
-    janela = tk.Tk()
-    janela.overrideredirect(True)
-    janela.attributes("-topmost", True)
-    janela.attributes("-alpha", 0.0)
+from att_backend import WingetClient, load_preferences, save_preferences
+from att_history import ActivityStore
+from att_dashboard import Dashboard
 
-    # Paleta de cores por tipo
-    paleta = {
-        "info": {"fundo": "#0C2C11","destaque": "#89FAAB", "texto": "#CDF4D5", "icone": "⟳"},
-        "erro": { "fundo": "#0C252C", "destaque": "#F38BA8", "texto": "#CDF4D5", "icone": "✕"},
-        "aviso": { "fundo": "#0C252C", "destaque": "#F9E2AF", "texto": "#CDF4D5", "icone": "⚠"},
-    }
-    cores = paleta.get(tipo, paleta["info"])
-    janela.configure(bg=cores["fundo"])
 
-    # Frame com borda colorida
-    borda = tk.Frame(janela, bg=cores["destaque"], padx=2, pady=2)
-    borda.pack(fill="both", expand=True)
+SUCCESS = {"Atualizado", "Reinício necessário", "Sem atualização"}
 
-    # Conteúdo principal
-    conteudo = tk.Frame(borda, bg=cores["fundo"], padx=28, pady=20)
-    conteudo.pack(fill="both", expand=True)
 
-    # Ícone + título
-    cabecalho = tk.Frame(conteudo, bg=cores["fundo"])
-    cabecalho.pack(fill="x", anchor="w")
-    rotulo_icone = tk.Label(
-        cabecalho,
-        text=cores["icone"],
-        font=("Segoe UI", 18),
-        bg=cores["fundo"],
-        fg=cores["destaque"],
-    )
-    rotulo_icone.pack(side="left", padx=(0, 8))
+class ATTApp:
+    def __init__(self, root, client=None, preference_path=None, autostart=True):
+        self.root = root
+        self.client = client or WingetClient()
+        self.preference_path = preference_path
+        self.activity = ActivityStore(preference_path)
+        self.installed = None
+        self.inventory_error = ""
+        self.checked = False
+        self.query_failed = False
+        self.storage_error = ""
+        self.events = queue.Queue()
+        self.stop_requested = threading.Event()
+        self.busy = None
+        self.close_after = False
+        self.packages = {}
+        self.statuses = {}
+        self.details = {}
+        self.selected = set()
+        self.completed = 0
+        self.total = 0
+        self.run_keys = []
+        self._timers = set()
+        self.last_output = "Selecione um pacote para consultar seu status e os detalhes da execução."
+        enabled, warning = load_preferences(preference_path)
+        self.auto_launch = enabled
+        self.auto_update = tk.BooleanVar(value=enabled)
+        self.filter_text = tk.StringVar()
+        self.status_text = tk.StringVar(value="Pronto para buscar atualizações.")
+        self.progress_text = tk.StringVar(value="Nenhuma atualização em execução")
+        self._build()
+        self.filter_text.trace_add("write", lambda *_: self._render_rows())
+        self.root.protocol("WM_DELETE_WINDOW", self.request_close)
+        self.root.bind("<Destroy>", self._on_destroy, add="+")
+        self._schedule(60, self._poll)
+        warning = "\n".join(filter(None, (warning, self.activity.warning)))
+        if warning:
+            self._schedule(100, lambda: messagebox.showwarning("Preferência indisponível", warning, parent=self.root))
+        if autostart:
+            self._schedule(200, lambda: self.refresh(automatic=self.auto_launch))
 
-    rotulo_titulo = tk.Label(
-        cabecalho,
-        text="ATT — Atualizador",
-        font=("Segoe UI", 10, "bold"),
-        bg=cores["fundo"],
-        fg=cores["destaque"],
-        anchor="w",
-    )
-    rotulo_titulo.pack(side="left")
+    def _schedule(self, milliseconds, callback):
+        def invoke():
+            self._timers.discard(timer)
+            callback()
+        timer = self.root.after(milliseconds, invoke)
+        self._timers.add(timer)
 
-    # Separador
-    separador = tk.Frame(conteudo, bg=cores["destaque"], height=1)
-    separador.pack(fill="x", pady=(10, 14))
+    def _on_destroy(self, event):
+        if event.widget == self.root:
+            for timer in self._timers:
+                self.root.after_cancel(timer)
+            self._timers.clear()
 
-    # Mensagem principal
-    rotulo_mensagem = tk.Label(
-        conteudo,
-        text=mensagem,
-        font=("Segoe UI", 11),
-        bg=cores["fundo"],
-        fg=cores["texto"],
-        wraplength=380,
-        justify="left",
-        anchor="w",
-    )
-    rotulo_mensagem.pack(fill="x", anchor="w")
+    def _build(self):
+        self.dashboard = Dashboard(self)
+        self.dashboard.build()
+        self._update_controls()
 
-    # Barra de progresso animada
-    frame_progresso = tk.Frame(conteudo, bg="#313244", height=4)
-    frame_progresso.pack(fill="x", pady=(18, 0))
-    frame_progresso.pack_propagate(False)
+    def _persist(self, operation, *args):
+        try:
+            operation(*args)
+            self.storage_error = ""
+        except OSError as error:
+            self.storage_error = f"Não foi possível salvar o histórico: {error}"
+            self.status_text.set(self.storage_error)
 
-    barra_progresso = tk.Frame(frame_progresso, bg=cores["destaque"], height=4)
-    barra_progresso.place(x=0, y=0, relwidth=1.0, height=4)
+    def _set_details(self, text):
+        self.detail_box.configure(state="normal")
+        self.detail_box.delete("1.0", "end")
+        self.detail_box.insert("1.0", text[-16000:])
+        self.detail_box.configure(state="disabled")
 
-    # Centralizar na tela
-    janela.update_idletasks()
-    largura = janela.winfo_reqwidth() + 4
-    altura = janela.winfo_reqheight() + 4
-    posicao_x = (janela.winfo_screenwidth() // 2) - (largura // 2)
-    posicao_y = (janela.winfo_screenheight() // 2) - (altura // 2)
-    janela.geometry(f"{largura}x{altura}+{posicao_x}+{posicao_y}")
-
-    # Animações
-    passos_opacidade = 20
-    intervalo_opacidade = 150
-
-    def animar_entrada(passo=0):
-        opacidade = passo / passos_opacidade
-        janela.attributes("-alpha", min(opacidade, 1.0))
-        if passo < passos_opacidade:
-            janela.after(intervalo_opacidade // passos_opacidade, animar_entrada, passo + 1)
-        else:
-            animar_barra()
-
-    def animar_barra():
-        fps = 60
-        intervalo = 1000 // fps
-        passos_totais = duracao_ms // intervalo
-
-        def atualizar_barra(passo_atual=0):
-            if not janela.winfo_exists():
-                return
-            fracao = 1.0 - (passo_atual / passos_totais)
-            barra_progresso.place(x=0, y=0, relwidth=max(fracao, 0.0), height=4)
-            if passo_atual < passos_totais:
-                janela.after(intervalo, atualizar_barra, passo_atual + 1)
-            else:
-                animar_saida()
-
-        atualizar_barra()
-
-    def animar_saida(passo=0):
-        if not janela.winfo_exists():
+    def _save_preference(self):
+        enabled = self.auto_update.get()
+        try:
+            save_preferences(enabled, self.preference_path)
+        except OSError as error:
+            self.auto_update.set(not enabled)
+            messagebox.showerror("Não foi possível salvar", str(error), parent=self.root)
             return
-        opacidade = 1.0 - (passo / passos_opacidade)
-        janela.attributes("-alpha", max(opacidade, 0.0))
-        if passo < passos_opacidade:
-            janela.after(intervalo_opacidade // passos_opacidade, animar_saida, passo + 1)
+        self.status_text.set("Preferência salva. O novo modo será usado na próxima abertura do ATT.")
+
+    def _eligible(self, key):
+        return not self.packages[key].blocked and self.statuses[key] not in SUCCESS
+
+    def _update_controls(self):
+        idle = self.busy is None
+        self.refresh_button.configure(state="normal" if idle else "disabled")
+        self.select_button.configure(state="normal" if idle and any(self._eligible(key) for key in self.packages) else "disabled")
+        self.clear_button.configure(state="normal" if idle and self.selected else "disabled")
+        self.update_button.configure(state="normal" if idle and self.selected else "disabled")
+        self.stop_button.configure(state="normal" if self.busy == "update" and not self.stop_requested.is_set() else "disabled")
+        self.dashboard.update()
+
+    def _render_rows(self):
+        self.tree.identifiers = {key:p.identifier for key,p in self.packages.items()}
+        focused = self.tree.selection()
+        self.tree.delete(*self.tree.get_children())
+        query = self.filter_text.get().strip().casefold()
+        for key, package in self.dashboard.ordered():
+            if not self.dashboard.accepts(key, package):
+                continue
+            if query and query not in package.name.casefold() and query not in package.identifier.casefold():
+                continue
+            status = self.statuses[key]
+            symbol = "[x]" if key in self.selected else "[ ]"
+            if not self._eligible(key):
+                symbol = "—"
+            tag = "blocked" if package.blocked else "failed" if status == "Falhou" else "success" if status in SUCCESS else ""
+            self.tree.insert("", "end", iid=key, values=(symbol, package.name, package.installed, package.available, status), tags=(tag,))
+        if focused and self.tree.exists(focused[0]):
+            self.tree.selection_set(focused[0])
+        if self.tree.get_children():
+            self.empty_label.place_forget()
         else:
-            janela.destroy()
+            filtered = query or self.dashboard.status_filter.get() != "Todos os status" or self.dashboard.source_filter.get() != "Todas as origens" or self.dashboard.type_filter.get() != "Todos os tipos"
+            text = "Nenhum programa corresponde ao filtro." if filtered else self.last_output
+            self.empty_label.configure(text=text[:160], cursor="hand2" if self.query_failed else "")
+            self.empty_label.place(relx=0.5, rely=0.55, anchor="center")
+        self._update_controls()
 
-    animar_entrada()
-    janela.mainloop()
-    
-def main() -> None:
+    def _toggle(self, key):
+        if self.busy or not key or not self._eligible(key):
+            return
+        if key in self.selected:
+            self.selected.remove(key)
+        else:
+            self.selected.add(key)
+        self._render_rows()
 
-    # Validação do sistema operacional
+    def _click_row(self, event):
+        if event.x>self.tree.winfo_width()-6:
+            self.tree.drag_scroll(event.y)
+            return
+        if event.y<30 and event.x<38:
+            if not self.busy:self.dashboard.toggle_all()
+            return
+        key = self.tree.identify_row(event.y)
+        if not key:return
+        self.tree.focus_force()
+        self.tree.selection_set(key)
+        if self.tree.identify_column(event.x) == "#1":
+            self._toggle(key)
+        elif self.tree.identify_column(event.x) == "#6":
+            self.dashboard.show_package()
+
+    def _space_row(self, _event):
+        selected = self.tree.selection()
+        if selected:
+            self._toggle(selected[0])
+        return "break"
+
+    def _show_details(self, _event=None):
+        selected = self.tree.selection()
+        if selected and selected[0] in self.packages:
+            key = selected[0]
+            package = self.packages[key]
+            self._set_details(f"{package.name}  •  {package.identifier}  •  Origem: {package.source}\n"
+                              + (self.details.get(key) or package.blocked or "Aguardando seleção para atualizar."))
+
+    def select_all(self):
+        if not self.busy:
+            self.selected = {key for key in self.packages if self._eligible(key)}
+            self._render_rows()
+
+    def clear_selection(self):
+        if not self.busy:
+            self.selected.clear()
+            self._render_rows()
+
+    def refresh(self, automatic=False):
+        if self.busy:
+            return
+        self.busy = "query"
+        self.packages.clear()
+        self.statuses.clear()
+        self.details.clear()
+        self.selected.clear()
+        self.completed = 0
+        self.total = 0
+        self.run_keys = []
+        self.checked = False
+        self.query_failed = False
+        self.installed = None
+        self.inventory_error = ""
+        self.dashboard.source_filter.set("Todas as origens")
+        self.last_output = "Consultando atualizações com o winget…"
+        self.status_text.set(self.last_output)
+        self.progress_text.set("Buscando versões disponíveis…")
+        self.progress.configure(mode="indeterminate")
+        self.progress.start(12)
+        self._set_details("A consulta pode levar alguns instantes. Nenhum pacote é instalado nesta etapa.")
+        self._render_rows()
+        threading.Thread(target=self._query_worker, args=(automatic,), daemon=False).start()
+
+    def _query_worker(self, automatic):
+        try:
+            packages = self.client.discover()
+            installed, error = None, ""
+            try:
+                installed = self.client.list_installed()
+            except Exception as problem:
+                error = f"Inventário indisponível: {problem}"
+            self.events.put(("found", packages, automatic, installed, error))
+        except Exception as error:
+            self.events.put(("query_error", str(error)))
+
+    def start_updates(self):
+        if self.busy:
+            return
+        keys = [key for key in self.packages if key in self.selected and self._eligible(key)]
+        if not keys:
+            return
+        self.busy = "update"
+        self.stop_requested.clear()
+        self.dashboard.stop_toggle.set(False)
+        self.completed = 0
+        self.total = len(keys)
+        self.run_keys = keys
+        self.progress.configure(mode="determinate", maximum=self.total, value=0)
+        self.progress_text.set(f"0 de {self.total} processados")
+        for key in keys:
+            self.statuses[key] = "Na fila"
+        self.status_text.set("Atualizando os pacotes. O Windows poderá solicitar permissão.")
+        self._render_rows()
+        threading.Thread(target=self._upgrade_worker, args=([(key, self.packages[key]) for key in keys],), daemon=False).start()
+
+    def _upgrade_worker(self, items):
+        for key, package in items:
+            if self.stop_requested.is_set():
+                break
+            self.events.put(("started", key))
+            try:
+                status, details = self.client.upgrade(package)
+            except Exception as error:
+                status, details = "Falhou", str(error)
+            self.events.put(("result", key, status, details))
+        self.events.put(("finished",))
+
+    def request_stop(self):
+        if self.busy == "update":
+            self.stop_requested.set()
+            self.status_text.set("A fila será interrompida após a instalação em andamento.")
+            self._update_controls()
+
+    def request_close(self):
+        if not self.busy:
+            self.root.destroy()
+        elif messagebox.askyesno("Sair após a operação atual?",
+                                 "A operação em andamento será concluída antes de sair.\n"
+                                 "Os próximos pacotes não serão iniciados.\n\n"
+                                 "Deseja sair assim que ela terminar?", parent=self.root):
+            self.close_after = True
+            self.stop_requested.set()
+            self.status_text.set("Aguardando a operação atual terminar para fechar…")
+            self._update_controls()
+
+    def _handle_event(self, event):
+        kind = event[0]
+        if kind in ("found", "query_error"):
+            self.progress.stop()
+            self.progress.configure(mode="determinate", value=0)
+            self.busy = None
+            if kind == "query_error":
+                self.query_failed = True
+                self.last_output = "Não foi possível consultar. Clique aqui para ver os detalhes e tente novamente."
+                self._set_details(event[1])
+                self.status_text.set("Falha na consulta. Nenhuma atualização foi iniciada.")
+            else:
+                self.checked = True
+                self.installed = event[3] if len(event) > 3 else None
+                self.inventory_error = event[4] if len(event) > 4 else ""
+                self._persist(self.activity.checked)
+                for index, package in enumerate(event[1]):
+                    key = str(index)
+                    self.packages[key] = package
+                    self.statuses[key] = "Indisponível" if package.blocked else "Pendente"
+                self.last_output = "Tudo em dia. Nenhuma atualização disponível."
+                blocked = sum(bool(package.blocked) for package in self.packages.values())
+                self.status_text.set(f"{len(self.packages)} atualização(ões) encontrada(s)."
+                                     + (f" {blocked} item(ns) bloqueado(s); selecione a linha para ver o motivo." if blocked else ""))
+                self._set_details("Marque os programas que deseja atualizar e clique em Atualizar selecionados.")
+            self.progress_text.set("Consulta concluída" if kind == "found" else "Consulta não concluída")
+            self._render_rows()
+            if self.storage_error:
+                self.status_text.set(self.storage_error)
+            elif self.inventory_error:
+                self.status_text.set(self.status_text.get() + " Inventário indisponível; veja Aplicativos.")
+            if self.close_after:
+                return
+            if kind == "found" and event[2] and self.packages:
+                self.select_all()
+                self.start_updates()
+        elif kind == "started":
+            key = event[1]
+            self.statuses[key] = "Atualizando…"
+            self.progress_text.set(f"{self.completed} de {self.total} processados • {self.packages[key].name}")
+            self._render_rows()
+            if self.tree.exists(key):
+                self.tree.selection_set(key)
+                self.tree.see(key)
+            self._set_details(f"Atualizando {self.packages[key].name}…\nAguardando o instalador concluir.")
+        elif kind == "result":
+            _, key, status, details = event
+            self.statuses[key] = status
+            self._persist(self.activity.record, self.packages[key], status, details)
+            self.details[key] = status + ("\n" + details if details else "")
+            self.selected.discard(key)
+            self.completed += 1
+            self.progress.configure(value=self.completed)
+            self.progress_text.set(f"{self.completed} de {self.total} processados")
+            self._render_rows()
+            self._set_details(f"{self.packages[key].name}: {self.details[key]}")
+        elif kind == "finished":
+            self.busy = None
+            self.dashboard.stop_toggle.set(False)
+            for key in self.packages:
+                if self.statuses[key] == "Na fila":
+                    self.statuses[key] = "Pendente"
+            results = [self.statuses[key] for key in self.run_keys]
+            failed = results.count("Falhou")
+            updated = results.count("Atualizado") + results.count("Reinício necessário")
+            unchanged = results.count("Sem atualização")
+            restart = "Reinício necessário" in results
+            self.status_text.set(f"{'Fila interrompida' if self.stop_requested.is_set() else 'Execução concluída'}: "
+                                 f"{self.completed} de {self.total} processados; {updated} atualizado(s), "
+                                 f"{unchanged} sem atualização, {failed} falha(s). "
+                                 + ("Reinicie o Windows para concluir a instalação. " if restart else "")
+                                 + "Busque novamente para atualizar a lista.")
+            if self.storage_error:
+                self.status_text.set(self.status_text.get() + " " + self.storage_error)
+            self._render_rows()
+
+    def _poll(self):
+        try:
+            while True:
+                self._handle_event(self.events.get_nowait())
+        except queue.Empty:
+            pass
+        if self.close_after and not self.busy:
+            self.root.destroy()
+            return
+        self._schedule(60, self._poll)
+
+
+def main():
     if platform.system() != "Windows":
-        mostrar_mensagem(
-            mensagem="Este script só pode ser executado no Windows.",
-            duracao_ms=5000,
-            tipo="aviso",
-        )
-        sys.exit(1)
-    
-    # Execução principal
-    try:
-        mostrar_mensagem(
-            "Verificando atualizações de programas…\nAguarde, isso pode levar alguns instantes.",
-            10000,
-            tipo="info",
-        )
-        subprocess.run(
-            ["winget", "upgrade", "--all", "--silent"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-    except Exception as erro:
-        mostrar_mensagem(f"Ocorreu um erro inesperado:\n{erro}", 10000, tipo="erro",)
+        print("O ATT só pode executar atualizações no Windows.", file=sys.stderr)
+        return 1
+    root = tk.Tk()
+    ATTApp(root)
+    root.mainloop()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
