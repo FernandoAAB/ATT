@@ -3,15 +3,22 @@
 Painel em Python/Tkinter para gerenciar as atualizações dos programas instalados
 pelo `winget`, com seleção manual e atualização automática opcional.
 
-## Prévia
+## Imagens do programa
 
-![Visão geral do ATT com dados de exemplo](Doc/Previa-painel.png)
+### Painel principal
+
+![Painel principal do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-painel.png)
+
+### Histórico de atualizações
+
+![Histórico de atualizações do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-historico.png)
+
+### Aplicativos instalados
+
+![Lista de aplicativos instalados no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-aplicativos.png)
 
 Layout de 1280 × 720 baseado na referência visual, com painéis, botões e tabela vetoriais arredondados. As capturas usam dados de exemplo
 em uma tela virtual Linux; fontes e elementos nativos podem variar no Windows.
-
-Outras telas: [Histórico](Doc/Previa-historico.png) e
-[Aplicativos instalados](Doc/Previa-aplicativos.png).
 
 ## Requisitos e execução
 
