@@ -7,26 +7,26 @@ pelo `winget`, com seleção manual e atualização automática opcional.
 
 ### Painel principal
 
-![Painel principal do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-painel.png?v=302cb5caa31e)
+![Painel principal do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-painel.png?v=e7d5bacbce55)
 
 ### Histórico de atualizações
 
-![Histórico de atualizações do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-historico.png?v=15420d38419a)
+![Histórico de atualizações do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-historico.png?v=882f70561db8)
 
 ### Aplicativos instalados
 
-![Lista de aplicativos instalados no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-aplicativos.png?v=a647cbff9fe1)
+![Lista de aplicativos instalados no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-aplicativos.png?v=02b80fcfdd9d)
 
-Layout de 1280 × 720 baseado na referência visual, com painéis, botões e tabela vetoriais arredondados. As capturas usam dados de exemplo
+Layout de 1280 × 720 baseado na referência visual, com painéis e botões arredondados e ícones suavizados. As capturas usam dados de exemplo
 em uma tela virtual Linux; fontes e elementos nativos podem variar no Windows.
 
 ### Falhas preservadas na lista
 
-![Resultado de atualização e falha no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-falhas.png?v=0132ec719896)
+![Resultado de atualização e falha no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-falhas.png?v=d278d00912fa)
 
 ### Textos acessíveis em janela menor
 
-![Configurações do ATT com rolagem](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-configuracoes.png?v=def39fb7e58f)
+![Configurações do ATT com rolagem](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-configuracoes.png?v=288fdd696760)
 
 ## Requisitos e execução
 
@@ -40,8 +40,8 @@ Na pasta do projeto, execute:
 python main.py
 ```
 
-Não há dependências para instalar com pip. Mantenha os módulos `att_backend.py`,
-`att_dashboard.py`, `att_widgets.py`, `att_history.py` e `att_storage.py` junto ao `main.py`.
+Não há dependências para instalar com pip. Mantenha todos os módulos `att_*.py`
+junto ao `main.py`, incluindo `att_display.py`, `att_icons.py` e `att_icon_data.py`.
 O arquivo `Atualizador.exe` incluído no repositório é a versão anterior;
 **ele não contém este novo painel**. Use o código Python até que um novo executável
 seja gerado no Windows.
@@ -53,7 +53,7 @@ seja gerado no Windows.
 - **Histórico:** registros de execução por usuário, com data, versões, resultado e detalhes do instalador ao selecionar uma linha.
 - **Aplicativos:** inventário da última consulta `winget list`, com busca por nome ou identificador.
 - **Automação:** preferência para atualizar todos os pendentes na próxima abertura.
-- **Configurações:** localização dos dados e informações sobre o funcionamento.
+- **Configurações:** modo de instalação com janela do PowerShell, localização dos dados e informações sobre o funcionamento.
 
 O número de instalados representa os aplicativos detectados pelo winget, não todos
 os componentes do Windows. Um inventário que falhou aparece como indisponível,
@@ -115,12 +115,23 @@ gravação ou verificação, enquanto a janela continuar aberta. O arquivo
 `history.lock` na mesma pasta é usado nessa coordenação e pode permanecer lá.
 
 O painel não exige execução como administrador; instaladores podem solicitar
-permissão pelo Windows. A instalação é silenciosa, e contratos não são aceitos
-automaticamente. Para exigências de interação, contratos ou problemas nas origens,
-revise os detalhes e execute `winget upgrade` em um terminal para resolver as
-solicitações apresentadas pelo próprio winget. Os detalhes preservam o código e
-a mensagem original, com orientações para erros conhecidos de download e instalador
+permissão pelo Windows. A instalação usa o modo silencioso por padrão. Se o pacote
+funciona no PowerShell e falha no ATT, abra **Configurações** e marque
+**Usar PowerShell com janela nesta sessão**. Volte a **Atualizações**, clique em
+**Selecionar falhas** e depois em **Atualizar selecionados**. Cada pacote abre um
+terminal com entrada disponível, sem forçar o modo silencioso; responda às
+solicitações ali. Em caso de falha, pressione Enter no terminal para retornar ao
+ATT. A fila aguarda o término do processo, mantém os resultados e respeita
+**Parar após este pacote**. O modo volta ao padrão ao reabrir o programa.
+
+Contratos não são aceitos automaticamente em nenhum dos modos. Os detalhes
+preservam o código, o modo, o comando executado e um comando para comparação.
+No modo silencioso, também incluem a saída original; com janela, tentam obter o
+trecho final do console e avisam quando o host não disponibiliza esse texto.
+Há orientações para erros conhecidos de download e instalador
 ocupado. Consulte [Menus e falhas](Doc/Menus-e-falhas.md) para os casos corrigidos.
+O modo com janela permite testar a diferença de interação; não garante corrigir
+erros de rede ou links indisponíveis. Veja [Downloads e nitidez](Doc/Downloads-e-nitidez.md).
 
 Para o erro **EpsonNet Print — HTTP 404 (`0x80190194`)**, consulte
 [o diagnóstico e os comandos para atualizar o catálogo](Doc/EpsonNetPrint-404.md).
@@ -143,6 +154,8 @@ python -m unittest -v
 
 A suíte usa respostas simuladas e não instala programas. Cobre tabelas do winget,
 inventário, seleção, filtros, navegação, filas, persistência, falhas e interrupção.
+Também verifica o encaminhamento ao PowerShell, a captura de erro no terminal,
+a configuração de DPI antes do Tk e a permanência dos ícones após navegar.
 Testes de interface precisam de uma tela; em Linux podem usar Xvfb. Sem tela,
 esses testes são explicitamente ignorados. Instalações reais, permissões e
 compatibilidade com o winget instalado precisam ser verificadas no Windows.

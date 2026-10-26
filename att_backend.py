@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import unicodedata
 
 from att_storage import write_json
@@ -195,25 +196,93 @@ class WingetClient:
                 return []
         return parse_upgrades(output, installed=True)
 
-    def upgrade(self, package):
+    @staticmethod
+    def _upgrade_arguments(package):
         if (package.blocked or not IDENTIFIER.fullmatch(package.identifier)
                 or not IDENTIFIER.fullmatch(package.source)
                 or "..." in package.identifier or "..." in package.source):
             raise WingetError("Pacote sem identificação segura para atualização.")
-        code, output = self.run([
+        return [
             "upgrade", "--id", package.identifier, "--exact", "--source", package.source,
-            "--silent", "--disable-interactivity",
-        ])
+        ]
+
+    def upgrade(self, package):
+        arguments = self._upgrade_arguments(package)
+        code, output = self.run([*arguments, "--silent", "--disable-interactivity"])
+        return self._upgrade_result(package, code, output, 'silencioso')
+
+    def upgrade_interactive(self, package):
+        """Terminal real, com entrada disponível; aguarda antes do próximo pacote."""
+        self._upgrade_arguments(package)
+        # Somente argumentos validados; aspas simples protegem inclusive caminhos
+        # temporários com espaços ou apóstrofos. Não usa shell=True nem elevação.
+        def quote(value):
+            return "'" + value.replace("'", "''") + "'"
+
+        command = f"& winget upgrade --id {quote(package.identifier)} --exact --source {quote(package.source)}"
+        with tempfile.TemporaryDirectory(prefix='att-winget-') as folder:
+            log = Path(folder) / 'output.txt'
+            # Não redirecionar stdout: versões do winget exigem entrada E saída
+            # ligadas a um console para certas perguntas. Após concluir, tenta
+            # guardar as últimas 200 linhas do buffer visível. A coleta pode não
+            # ser suportada pelo host e nunca substitui o código do instalador.
+            script = f"""
+$global:LASTEXITCODE = 1
+{command}
+$attCode = $LASTEXITCODE
+try {{
+    $attUI = $Host.UI.RawUI
+    $attBottom = [Math]::Min($attUI.CursorPosition.Y, $attUI.BufferSize.Height - 1)
+    $attTop = [Math]::Max(0, $attBottom - 199)
+    $attRight = $attUI.BufferSize.Width - 1
+    $attRect = [System.Management.Automation.Host.Rectangle]::new(0, $attTop, $attRight, $attBottom)
+    $attBuffer = $attUI.GetBufferContents($attRect)
+    $attLines = [System.Collections.Generic.List[string]]::new()
+    for ($attRow = 0; $attRow -lt $attBuffer.GetLength(0); $attRow++) {{
+        $attLine = [System.Text.StringBuilder]::new()
+        for ($attCol = 0; $attCol -lt $attBuffer.GetLength(1); $attCol++) {{
+            [void]$attLine.Append($attBuffer[$attRow, $attCol].Character)
+        }}
+        [void]$attLines.Add($attLine.ToString().TrimEnd())
+    }}
+    [System.IO.File]::WriteAllLines({quote(str(log))}, $attLines, [System.Text.UTF8Encoding]::new($false))
+}} catch {{}}
+if ($attCode -ne 0) {{
+    Write-Host ('ATT: winget terminou com codigo ' + $attCode)
+    [void](Read-Host 'Pressione Enter para retornar ao ATT')
+}}
+exit $attCode
+"""
+            try:
+                result = subprocess.run(
+                    ['powershell.exe', '-NoProfile', '-Command', script],
+                    creationflags=getattr(subprocess, 'CREATE_NEW_CONSOLE', 0x10),
+                )
+            except FileNotFoundError as error:
+                raise WingetError('PowerShell não encontrado. Use o modo silencioso ou confira a instalação do Windows PowerShell.') from error
+            try:
+                raw = log.read_bytes()
+                encoding = 'utf-16' if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else 'utf-8-sig'
+                output = raw.decode(encoding, errors='replace').strip()
+            except OSError:
+                output = 'O host não disponibilizou o texto do terminal. Consulte a mensagem na janela do PowerShell.'
+        return self._upgrade_result(package, result.returncode & 0xFFFFFFFF, output, 'PowerShell com janela')
+
+    @staticmethod
+    def _upgrade_result(package, code, output, mode):
+        command = f'winget upgrade --id {package.identifier} --exact --source {package.source}'
+        executed = command + (' --silent --disable-interactivity' if mode == 'silencioso' else '')
+        context = f'Modo: {mode}\nComando executado: {executed}\nComando para comparar no PowerShell: {command}\n'
         if code == 0:
-            return "Atualizado", output
+            return "Atualizado", context + output
         if code == REBOOT_REQUIRED:
-            return "Reinício necessário", output
+            return "Reinício necessário", context + output
         if code in (NOT_APPLICABLE, ALREADY_INSTALLED):
-            return "Sem atualização", output
+            return "Sem atualização", context + output
         hint_code = code
         if code == DOWNLOAD_FAILED and re.search(r'\b0x80190194\b', output, flags=re.IGNORECASE):
             hint_code = HTTP_NOT_FOUND
         hint = FAILURE_HINTS.get(hint_code, 'O winget não concluiu a atualização deste pacote. Consulte o retorno abaixo.')
         details = (f'Pacote: {package.identifier}\nOrigem: {package.source}\nCódigo 0x{code:08X}\n'
-                   f'{hint}\n\nRetorno do winget:\n{output[-12000:] or "Nenhuma mensagem retornada."}')
+                   f'{context}{hint}\n\nRetorno do winget:\n{output[-12000:] or "Nenhuma mensagem retornada."}')
         return "Falhou", details

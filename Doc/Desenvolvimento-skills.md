@@ -63,3 +63,7 @@ O bloqueio usa `msvcrt` no Windows e `fcntl` no Linux. A validação executada n
 ambiente exercita o caminho Linux; a execução nativa no Windows, o comportamento
 de permissões e as instalações reais seguem exigindo validação nessa plataforma.
 O executável antigo não foi reconstruído nesta revisão.
+
+A revisão posterior de downloads e nitidez segue o mesmo fluxo de diagnóstico e
+testes. As evidências, o modo PowerShell com console real, os ícones suavizados e
+os limites da validação estão em [Downloads e nitidez](Downloads-e-nitidez.md).

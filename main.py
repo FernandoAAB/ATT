@@ -10,6 +10,7 @@ from tkinter import messagebox
 from att_backend import WingetClient, load_preferences, save_preferences
 from att_history import ActivityStore
 from att_dashboard import Dashboard
+from att_display import enable_dpi_awareness
 
 
 SUCCESS = {"Atualizado", "Reinício necessário", "Sem atualização"}
@@ -43,6 +44,7 @@ class ATTApp:
         enabled, warning = load_preferences(preference_path)
         self.auto_launch = enabled
         self.auto_update = tk.BooleanVar(value=enabled)
+        self.interactive_update = tk.BooleanVar(value=False)
         self.filter_text = tk.StringVar()
         self.status_text = tk.StringVar(value="Pronto para buscar atualizações.")
         self.progress_text = tk.StringVar(value="Nenhuma atualização em execução")
@@ -105,6 +107,7 @@ class ATTApp:
     def _update_controls(self):
         idle = self.busy is None
         self.refresh_button.configure(state="normal" if idle else "disabled")
+        self.dashboard.interactive_check.configure(state="normal" if idle else "disabled")
         self.select_button.configure(state="normal" if idle and any(self._eligible(key) for key in self.packages) else "disabled")
         self.clear_button.configure(state="normal" if idle and self.selected else "disabled")
         self.update_button.configure(state="normal" if idle and self.selected else "disabled")
@@ -265,17 +268,21 @@ class ATTApp:
         self.progress_text.set(f"0 de {self.total} processados")
         for key in keys:
             self.statuses[key] = "Na fila"
-        self.status_text.set("Atualizando os pacotes. O Windows poderá solicitar permissão.")
+        interactive = self.interactive_update.get()
+        self.status_text.set("Modo PowerShell: responda às solicitações na janela do terminal."
+                             if interactive else "Atualizando os pacotes. O Windows poderá solicitar permissão.")
         self._render_rows()
-        threading.Thread(target=self._upgrade_worker, args=([(key, self.packages[key]) for key in keys],), daemon=False).start()
+        threading.Thread(target=self._upgrade_worker,
+                         args=([(key, self.packages[key]) for key in keys], interactive), daemon=False).start()
 
-    def _upgrade_worker(self, items):
+    def _upgrade_worker(self, items, interactive=False):
         for key, package in items:
             if self.stop_requested.is_set():
                 break
             self.events.put(("started", key))
             try:
-                status, details = self.client.upgrade(package)
+                operation = self.client.upgrade_interactive if interactive else self.client.upgrade
+                status, details = operation(package)
             except Exception as error:
                 status, details = "Falhou", str(error)
             self.events.put(("result", key, status, details))
@@ -343,7 +350,9 @@ class ATTApp:
             if self.tree.exists(key):
                 self.tree.selection_set(key)
                 self.tree.see(key)
-            self._set_details(f"Atualizando {self.packages[key].name}…\nAguardando o instalador concluir.")
+            note = ("Responda às solicitações no PowerShell. Se houver erro, pressione Enter no terminal para retornar ao ATT."
+                    if self.interactive_update.get() else "Aguardando o instalador concluir.")
+            self._set_details(f"Atualizando {self.packages[key].name}…\n{note}")
         elif kind == "result":
             _, key, status, details = event
             self.statuses[key] = status
@@ -391,6 +400,7 @@ def main():
     if platform.system() != "Windows":
         print("O ATT só pode executar atualizações no Windows.", file=sys.stderr)
         return 1
+    enable_dpi_awareness()
     root = tk.Tk()
     ATTApp(root)
     root.mainloop()

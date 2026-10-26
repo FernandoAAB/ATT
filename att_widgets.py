@@ -1,12 +1,13 @@
 """Componentes vetoriais Tkinter para manter o visual consistente entre sistemas."""
 import tkinter as tk
 from tkinter import font as tkfont
+from att_icons import image_for
 
 BG = '#0C111B'
 PANEL = '#18232D'
 FIELD = '#202D39'
 TEXT = '#EAF0F5'
-MUTED = '#93A3B0'
+MUTED = '#A5B5C2'
 GREEN = '#63DDA1'
 
 
@@ -18,34 +19,7 @@ def rounded(canvas, x1, y1, x2, y2, radius=10, **kwargs):
 
 
 def icon(canvas, name, x, y, color=MUTED, size=16):
-    s=size/16
-    def line(*coords, **kw):
-        return canvas.create_line(*[v*s+(x if i%2==0 else y) for i,v in enumerate(coords)], fill=color, width=1.5, **kw)
-    def oval(a,b,c,d,**kw):
-        return canvas.create_oval(x+a*s,y+b*s,x+c*s,y+d*s,outline=color,width=1.4,**kw)
-    if name == 'grid':
-        for dx,dy in ((1,1),(9,1),(1,9),(9,9)):
-            rounded(canvas,x+dx*s,y+dy*s,x+(dx+5)*s,y+(dy+5)*s,2,fill=color,outline='')
-    elif name in ('download','arrow'):
-        line(8,1,8,11); line(4,7,8,11,12,7)
-        if name=='download': line(2,13,2,15,14,15,14,13)
-    elif name=='clock':
-        oval(1,1,15,15);line(8,4,8,8,11,10)
-    elif name=='apps':
-        for dy in (3,8,13): line(1,dy,15,dy)
-    elif name=='sliders':
-        for dy,dx in ((3,5),(8,11),(13,6)):
-            line(1,dy,15,dy);oval(dx-2,dy-2,dx+2,dy+2,fill=canvas.cget('bg'))
-    elif name=='settings':
-        oval(2,2,14,14);oval(6,6,10,10)
-        for coords in ((8,0,8,2),(8,14,8,16),(0,8,2,8),(14,8,16,8)):line(*coords)
-    elif name=='refresh':
-        canvas.create_arc(x+2*s,y+2*s,x+14*s,y+14*s,start=40,extent=285,style='arc',outline=color,width=1.7)
-        line(10,1,14,2,13,6)
-    elif name=='search':
-        oval(1,1,11,11);line(10,10,15,15)
-    elif name=='info':
-        oval(1,1,15,15);line(8,7,8,12);oval(7.5,4,8.5,5,fill=color)
+    return canvas.create_image(round(x), round(y), anchor='nw', image=image_for(canvas,name,color,size))
 
 
 class RoundedPanel(tk.Frame):
@@ -117,8 +91,8 @@ class RoundedButton(tk.Canvas):
         fg='#123C30' if self.primary and not self.disabled else '#697B89' if self.disabled else TEXT if not self.nav or self.active else MUTED
         if self.nav:
             if self.active:rounded(self,1,5,5,h-5,2,fill=GREEN,outline='')
-            icon(self,self.icon_name or 'grid',15,(h-16)/2,GREEN if self.active else MUTED)
-            self.create_text(43,h/2,text=self.text,fill=fg,anchor='w',font=(self.family,-12,'bold' if self.active else 'normal'),tags='button_text')
+            icon(self,self.icon_name or 'grid',13,(h-20)/2,GREEN if self.active else MUTED,20)
+            self.create_text(43,h/2,text=self.text,fill=fg,anchor='w',font=(self.family,-13,'bold' if self.active else 'normal'),tags='button_text')
         else:
             if self.icon_name:icon(self,self.icon_name,16,(h-16)/2,fg)
             self.create_text(w/2+(9 if self.icon_name else 0),h/2,text=self.text,fill=fg,

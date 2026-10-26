@@ -310,15 +310,23 @@ class Dashboard:
         info,self.automation_text=self.text_area(body,description)
         info.grid(row=1,column=0,sticky='nsew',pady=(10,0))
         settings = self.pages['Configurações']
-        self.label(settings, 'Armazenamento e funcionamento', 16, bold=True).grid(row=0, column=0, sticky='w')
+        self.label(settings, 'Instalação e funcionamento', 16, bold=True).grid(row=0, column=0, sticky='w')
+        settings.rowconfigure(1,weight=0);settings.rowconfigure(2,weight=1)
+        self.interactive_check=ttk.Checkbutton(settings,text='Usar PowerShell com janela nesta sessão',
+                                               variable=a.interactive_update)
+        self.interactive_check.grid(row=1,column=0,sticky='w',pady=(12,0))
         path = str(a.preference_path or '%LOCALAPPDATA%/ATT/config.json')
         description=(f'Preferências: {path}\nHistórico: {a.activity.path or "indisponível"}\n\n'
-                     'Instalações silenciosas via winget, em sequência. Contratos não são aceitos automaticamente.\n'
-                     'Atualizações que exigem interação mostram o motivo nos detalhes.\n\n'
+                     'Por padrão, o ATT usa o modo silencioso, sem perguntas.\n'
+                     'Se o pacote funciona no PowerShell e falha aqui, marque a opção acima, volte às Atualizações '
+                     'e selecione as falhas para tentar com janela. A opção vale somente nesta sessão.\n\n'
+                     'No modo PowerShell, responda às solicitações no terminal. Em caso de erro, pressione Enter '
+                     'para retornar ao ATT. Cada pacote termina antes do próximo; as falhas ficam no histórico.\n'
+                     'Contratos não são aceitos automaticamente em nenhum dos modos.\n\n'
                      'Os filtros organizam por origem e estado real. O winget não fornece uma classificação de recomendações.\n'
                      'O estado exibido é o da consulta; o ATT não monitora antivírus ou a proteção do Windows.')
         info,self.settings_text=self.text_area(settings,description)
-        info.grid(row=1,column=0,sticky='nsew',pady=(12,0))
+        info.grid(row=2,column=0,sticky='nsew',pady=(12,0))
 
     def show(self, view):
         self.view = view
