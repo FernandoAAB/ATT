@@ -37,8 +37,10 @@ class Dashboard:
         a, root = self.app, self.app.root
         self.font = 'Segoe UI' if 'Segoe UI' in tkfont.families(root) else 'Helvetica'
         root.title('ATT — Central de atualizações')
-        root.geometry('1280x720')
-        root.minsize(900, 720)
+        available_width=max(640,root.winfo_screenwidth()-64)
+        available_height=max(420,root.winfo_screenheight()-96)
+        root.geometry(f'{min(1280,available_width)}x{min(720,available_height)}')
+        root.minsize(min(900,available_width),min(520,available_height))
         root.configure(bg=BG)
         root.rowconfigure(1, weight=1)
         root.columnconfigure(1, weight=1)
@@ -71,13 +73,15 @@ class Dashboard:
 
         side=tk.Frame(root,bg='#101A27',width=180)
         side.grid(row=1,column=0,sticky='ns');side.pack_propagate(False)
-        self.label(side,'ESPAÇO DE TRABALHO',8,MUTED,'#101A27').pack(anchor='w',padx=17,pady=(18,5))
+        self.side_heading=self.label(side,'ESPAÇO DE TRABALHO',8,MUTED,'#101A27')
+        self.side_heading.pack(anchor='w',padx=17,pady=(18,5))
         for view, symbol in zip(('Visão geral','Atualizações','Histórico','Aplicativos','Automação','Configurações'),
                                 ('grid','download','clock','apps','sliders','settings')):
             button=RoundedButton(side,text=view,command=lambda name=view:self.show(name),width=160,height=36,
                                  nav=True,icon_name=symbol,font=self.font)
             button.pack(fill='x',padx=10,pady=2);self.nav[view]=button
-        tk.Frame(side,bg='#26323C',height=1).pack(fill='x',padx=16,pady=(34,15))
+        self.side_separator=tk.Frame(side,bg='#26323C',height=1)
+        self.side_separator.pack(fill='x',padx=16,pady=(34,15))
         self.label(side,'ESTADO DA CONSULTA',8,MUTED,'#101A27').pack(anchor='w',padx=18)
         self.device_status=self.label(side,'Aguardando verificação',10,GREEN,'#101A27',wraplength=148,justify='left')
         self.device_status.pack(anchor='w',padx=18,pady=(12,8))
@@ -85,6 +89,7 @@ class Dashboard:
         self.last_check_label=self.label(side,'Ainda não verificado',10,TEXT,'#101A27',wraplength=148,justify='left')
         self.last_check_label.pack(anchor='w',padx=18,pady=4)
         tip=self.panel(side,height=96,padx=12,pady=12)
+        self.side_tip=tip
         tip.pack(side='bottom',fill='x',padx=12,pady=(0,28));tip.pack_propagate(False)
         self.label(tip,'ATUALIZAÇÃO INTELIGENTE',8,GREEN).pack(anchor='w')
         self.label(tip,'Mantenha seus programas\nsempre em dia.',10,MUTED,justify='left').pack(anchor='w',pady=7)
@@ -95,6 +100,7 @@ class Dashboard:
         page.grid(row=1,column=1,sticky='nsew',padx=(0,14),pady=(20,10))
         page.columnconfigure(0,weight=1);page.rowconfigure(1,weight=1)
         header=tk.Frame(page,bg=BG,height=52)
+        self.header=header
         header.grid(row=0,column=0,sticky='ew',pady=(0,12));header.pack_propagate(False)
         a.refresh_button=RoundedButton(header,text='Verificar atualizações',command=a.refresh,primary=True,
                                        width=206,height=40,icon_name='refresh',font=self.font)
@@ -111,6 +117,7 @@ class Dashboard:
         self.stats.grid(row=0,column=0,sticky='ew',pady=(0,14));self.stats.grid_propagate(False)
         self.compact_stats=self.label(overview,'',10,MUTED,BG,anchor='w',wraplength=620)
         self.compact_stats.grid(row=0,column=0,sticky='ew',pady=(0,12));self.compact_stats.grid_remove()
+        self.compact_stats.bind('<Configure>',lambda event:self.compact_stats.configure(wraplength=max(100,event.width)))
         self.values=[]
         for index,(title,note,color) in enumerate((
             ('PROGRAMAS INSTALADOS','Detectados no dispositivo','#8CB5F4'),
@@ -139,12 +146,17 @@ class Dashboard:
         self.label(table_title,'Atualizações disponíveis',16,bold=True).pack(side='left')
         self.available_badge=self.label(table_title,'0',10,GREEN,'#254B3D',padx=10)
         self.available_badge.pack(side='left',padx=25)
+        self.retry_button=RoundedButton(table_title,text='Selecionar falhas',command=a.select_failed,
+                                        width=130,height=24,font=self.font)
         filters=tk.Frame(table_panel,bg=PANEL,height=30)
-        filters.grid(row=1,column=0,sticky='ew',pady=(0,12));filters.columnconfigure(3,weight=1)
-        Search(filters,a.filter_text,self.font,width=224).grid(row=0,column=0,padx=(0,16))
+        self.filters=filters
+        filters.grid(row=1,column=0,sticky='ew',pady=(0,12));filters.columnconfigure(0,weight=1,minsize=120)
+        self.search_field=Search(filters,a.filter_text,self.font,width=224)
+        self.search_field.grid(row=0,column=0,sticky='ew',padx=(0,16))
         self.type_combo=Choice(filters,self.type_filter,('Todos os tipos','Navegadores','Desenvolvimento','Utilitários','Multimídia','Outros'),width=104,font=self.font)
         self.type_combo.grid(row=0,column=1,padx=(0,8))
-        Choice(filters,self.order,('Ordenar por','Nome A–Z','Nome Z–A','Status'),width=104,font=self.font).grid(row=0,column=2)
+        self.order_combo=Choice(filters,self.order,('Ordenar por','Nome A–Z','Nome Z–A','Status'),width=104,font=self.font)
+        self.order_combo.grid(row=0,column=2)
         self.source_combo=Choice(filters,self.source_filter,('Todas as origens',),width=130,font=self.font)
         self.source_combo.grid(row=1,column=0,sticky='w',pady=8);self.source_combo.grid_remove()
         self.status_combo=Choice(filters,self.status_filter,('Todos os status','Pendentes','Selecionados','Atualizados','Falhas','Bloqueados'),width=126,font=self.font)
@@ -193,10 +205,13 @@ class Dashboard:
         self._build_history();self._build_apps();self._build_settings()
         self.options=self.panel(page,height=114)
         self.options.grid(row=2,column=0,sticky='ew',pady=(12,0));self.options.pack_propagate(False)
-        self.label(self.options,'Opções de execução',14,bold=True).place(x=18,y=16)
-        self.compact_progress=self.label(self.options,textvariable=a.progress_text,size=9,color=MUTED)
-        Toggle(self.options,a.auto_update,a._save_preference,'Atualizar ao abrir o ATT',font=self.font,width=270).place(x=18,y=40)
-        self.label(self.options,'Verificar automaticamente ao iniciar o programa',9,MUTED).place(x=53,y=70)
+        self.options_title=self.label(self.options,'Opções de execução',14,bold=True)
+        self.options_title.place(x=18,y=16)
+        self.compact_progress=self.label(self.options,'Pronto para iniciar',size=9,color=MUTED)
+        self.auto_toggle=Toggle(self.options,a.auto_update,a._save_preference,'Atualizar ao abrir o ATT',font=self.font,width=270)
+        self.auto_toggle.place(x=18,y=40)
+        self.auto_note=self.label(self.options,'Verificar automaticamente ao iniciar o programa',9,MUTED)
+        self.auto_note.place(x=53,y=70)
         a.stop_button=Toggle(self.options,self.stop_toggle,a.request_stop,'Parar após este pacote',font=self.font,switch=False,width=250)
         a.stop_button.place(x=350,y=40)
         self.stop_note=self.label(self.options,'Finaliza os itens em execução antes de parar',9,MUTED)
@@ -216,13 +231,31 @@ class Dashboard:
         eligible={key for key in a.packages if a._eligible(key)}
         a.clear_selection() if eligible and eligible<=a.selected else a.select_all()
 
+    def text_area(self, parent, content='', height=5):
+        frame=tk.Frame(parent,bg=PANEL)
+        frame.rowconfigure(0,weight=1);frame.columnconfigure(0,weight=1)
+        text=tk.Text(frame,height=height,width=1,wrap='word',bg=PANEL,fg=TEXT,relief='flat',
+                     font=(self.font,-12),padx=8,pady=8,highlightthickness=0)
+        text.grid(row=0,column=0,sticky='nsew')
+        scroll=ttk.Scrollbar(frame,orient='vertical',command=text.yview)
+        scroll.grid(row=0,column=1,sticky='ns');text.configure(yscrollcommand=scroll.set)
+        text.insert('1.0',content);text.configure(state='disabled')
+        return frame,text
+
     def show_package(self):
         if self.app.tree.selection():self.app._show_details()
+        content=self.app.detail_box.get('1.0','end').strip()
         popup=tk.Toplevel(self.app.root);popup.title('Detalhes da atualização');popup.geometry('640x340')
-        popup.configure(bg=BG);popup.transient(self.app.root)
-        text=tk.Text(popup,bg=PANEL,fg=TEXT,wrap='word',relief='flat',font=(self.font,-12),padx=15,pady=15)
-        text.pack(fill='both',expand=True,padx=12,pady=12)
-        text.insert('1.0',self.app.detail_box.get('1.0','end'));text.configure(state='disabled')
+        popup.minsize(360,220);popup.configure(bg=BG);popup.transient(self.app.root)
+        body,_=self.text_area(popup,content)
+        body.pack(fill='both',expand=True,padx=12,pady=(12,8))
+        actions=tk.Frame(popup,bg=BG);actions.pack(fill='x',padx=12,pady=(0,12))
+        def copy_details():
+            self.app.root.clipboard_clear();self.app.root.clipboard_append(content)
+            copy.configure(text='Copiado')
+        copy=RoundedButton(actions,text='Copiar detalhes',command=copy_details,width=180,height=32,font=self.font)
+        copy.pack(side='right')
+        return popup
 
     def make_tree(self, parent, columns, headings, widths):
         parent.rowconfigure(0, weight=1)
@@ -247,10 +280,8 @@ class Dashboard:
         self.history_tree = self.make_tree(body, ('time', 'name', 'version', 'status'),
                                            ('DATA / HORA', 'APLICATIVO', 'DESTINO', 'RESULTADO'), (155, 210, 100, 165))
         self.history_tree.column('name', minwidth=120, stretch=True)
-        self.history_details = tk.Text(frame, height=5, wrap='word', bg=FIELD, fg=TEXT,
-                                       relief='flat', font=(self.font, 10))
-        self.history_details.grid(row=2, column=0, sticky='ew', pady=(12, 0))
-        self.history_details.configure(state='disabled')
+        details,self.history_details=self.text_area(frame,height=5)
+        details.grid(row=2,column=0,sticky='ew',pady=(12,0))
         self.history_tree.bind('<<TreeviewSelect>>', self._history_selected)
 
     def _build_apps(self):
@@ -269,22 +300,25 @@ class Dashboard:
         auto = self.pages['Automação']
         self.label(auto, 'Atualização automática opcional', 16, bold=True).grid(row=0, column=0, sticky='w')
         body = tk.Frame(auto, bg=PANEL)
-        body.grid(row=1, column=0, sticky='new', pady=20)
+        body.grid(row=1, column=0, sticky='nsew', pady=(12,0))
+        body.columnconfigure(0,weight=1);body.rowconfigure(1,weight=1)
         ttk.Checkbutton(body, text='Atualizar todos os pendentes ao abrir o ATT', variable=a.auto_update,
-                        command=a._save_preference).pack(anchor='w')
-        self.label(body, 'A alteração vale para a próxima abertura. O painel permanece visível durante as instalações.\n\n'
-                   'O ATT não inicia com o Windows. Para parar uma fila em andamento, use “Parar após este pacote”.\n'
-                   'O instalador atual é concluído antes da parada; ele não é encerrado à força.', 11, MUTED,
-                   wraplength=580, justify='left').pack(anchor='w', pady=20)
+                        command=a._save_preference).grid(row=0,column=0,sticky='w')
+        description=('A alteração vale para a próxima abertura. O painel permanece visível durante as instalações.\n\n'
+                     'O ATT não inicia com o Windows. Para parar uma fila em andamento, use “Parar após este pacote”.\n'
+                     'O instalador atual é concluído antes da parada; ele não é encerrado à força.')
+        info,self.automation_text=self.text_area(body,description)
+        info.grid(row=1,column=0,sticky='nsew',pady=(10,0))
         settings = self.pages['Configurações']
         self.label(settings, 'Armazenamento e funcionamento', 16, bold=True).grid(row=0, column=0, sticky='w')
         path = str(a.preference_path or '%LOCALAPPDATA%/ATT/config.json')
-        self.label(settings, f'Preferências: {path}\nHistórico: {a.activity.path or "indisponível"}\n\n'
-                   'Instalações silenciosas via winget, em sequência. Contratos não são aceitos automaticamente.\n'
-                   'Atualizações que exigem interação mostram o motivo nos detalhes.\n\n'
-                   'Os filtros organizam por origem e estado real. O winget não fornece uma classificação de recomendações.\n'
-                   'O estado exibido é o da consulta; o ATT não monitora antivírus ou a proteção do Windows.',
-                   11, MUTED, wraplength=600, justify='left').grid(row=1, column=0, sticky='nw', pady=20)
+        description=(f'Preferências: {path}\nHistórico: {a.activity.path or "indisponível"}\n\n'
+                     'Instalações silenciosas via winget, em sequência. Contratos não são aceitos automaticamente.\n'
+                     'Atualizações que exigem interação mostram o motivo nos detalhes.\n\n'
+                     'Os filtros organizam por origem e estado real. O winget não fornece uma classificação de recomendações.\n'
+                     'O estado exibido é o da consulta; o ATT não monitora antivírus ou a proteção do Windows.')
+        info,self.settings_text=self.text_area(settings,description)
+        info.grid(row=1,column=0,sticky='nsew',pady=(12,0))
 
     def show(self, view):
         self.view = view
@@ -306,23 +340,55 @@ class Dashboard:
         self.update()
 
     def _responsive(self, width, height):
-        compact = width < 1100
+        short = height < 650
+        compact = width < 1220 or height < 680
         self.stats.grid_remove(); self.compact_stats.grid_remove()
         if self.view == 'Visão geral':
             (self.compact_stats if compact else self.stats).grid()
         if compact:
             self.execution.grid_remove()
             self.compact_progress.place(relx=1,x=-18,y=17,anchor='ne')
-            self.options.configure(height=130)
-            self.app.update_button.place(relx=1,x=-18,y=84,anchor='ne')
-            self.app.stop_button.place(x=280,y=40)
+            self.options.configure(height=106 if short else 130)
+            self.app.update_button.configure(height=36 if short else 44)
+            self.app.update_button.place(relx=1,x=-18,y=62 if short else 84,anchor='ne')
+            self.app.stop_button.place(x=280,y=34 if short else 40)
+            self.app.stop_button.configure(width=220)
+            self.auto_toggle.configure(width=240)
             self.stop_note.place(x=309,y=70)
         else:
             self.execution.grid(); self.compact_progress.place_forget()
             self.options.configure(height=114)
+            self.app.update_button.configure(height=44)
             self.app.update_button.place(relx=1,x=-22,y=39,anchor='ne')
             self.app.stop_button.place(x=350,y=40)
+            self.app.stop_button.configure(width=250)
+            self.auto_toggle.configure(width=270)
             self.stop_note.place(x=379,y=70)
+        self.auto_toggle.place(x=18,y=34 if short else 40)
+        self.options_title.place(x=18,y=12 if short else 16)
+        if short:
+            self.auto_note.place_forget(); self.stop_note.place_forget(); self.side_tip.pack_forget()
+            self.side_heading.pack_configure(pady=(12,3))
+            self.side_separator.pack_configure(pady=(16,8))
+        else:
+            self.auto_note.place(x=53,y=70)
+            self.side_tip.pack(side='bottom',fill='x',padx=12,pady=(0,28))
+            self.side_heading.pack_configure(pady=(18,5))
+            self.side_separator.pack_configure(pady=(34,15))
+        self.header.configure(height=68 if width<850 else 52)
+        self.subtitle.configure(wraplength=max(160,width-454),font=(self.font,-11 if compact else -12))
+        narrow = width < 1000
+        if narrow:
+            self.search_field.grid_configure(row=0,column=0,columnspan=3,padx=(0,8))
+            self.type_combo.grid_configure(row=1,column=0,sticky='w',pady=(8,0))
+            self.order_combo.grid_configure(row=1,column=1,columnspan=2,sticky='w',pady=(8,0))
+        else:
+            self.search_field.grid_configure(row=0,column=0,columnspan=1,padx=(0,16))
+            self.type_combo.grid_configure(row=0,column=1,sticky='',pady=0)
+            self.order_combo.grid_configure(row=0,column=2,columnspan=1,sticky='',pady=0)
+        if self.view=='Atualizações':
+            self.source_combo.grid_configure(row=2 if narrow else 1)
+            self.status_combo.grid_configure(row=2 if narrow else 1)
 
     def _resize(self, event):
         if event.widget == self.app.root and hasattr(self, 'options'):
@@ -338,7 +404,9 @@ class Dashboard:
                     'Compactador de arquivos':'Utilitários','Reprodutor multimídia':'Multimídia'}
         if self.type_filter.get()!='Todos os tipos' and categories.get(description(package.identifier),'Outros')!=self.type_filter.get():
             return False
-        checks = {'Pendentes': a._eligible(key), 'Selecionados': key in a.selected,
+        in_last_run = (not a.selection_changed_since_run and key in a.run_keys
+                       and (a.busy == 'update' or a.completed > 0))
+        checks = {'Pendentes': a._eligible(key), 'Selecionados': key in a.selected or in_last_run,
                   'Atualizados': status in ('Atualizado', 'Reinício necessário'),
                   'Falhas': status == 'Falhou', 'Bloqueados': bool(package.blocked)}
         return checks.get(self.status_filter.get(), True)
@@ -416,6 +484,7 @@ class Dashboard:
                 status = 'Aguardando'
             self.queue_list.insert('end', status + '\n\n', 'detail')
         self.queue_list.configure(state='disabled')
+        self.compact_progress.configure(text='Verificando…' if a.busy=='query' else f'{a.completed} de {a.total} processados' if active or finished else 'Pronto para iniciar')
         processed = a.completed if active or finished else 0
         total = a.total if active or finished else len(selected)
         self.percent.configure(text=f'{round(processed / total * 100) if total else 0}%')

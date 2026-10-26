@@ -17,6 +17,14 @@ from main import ATTApp
 from test_att import FakeClient
 
 
+class MixedResultsClient(FakeClient):
+    def upgrade(self, package):
+        self.calls.append(package.identifier)
+        if package.identifier == 'Acme.Editor':
+            return 'Atualizado', 'ok'
+        return 'Falhou', 'Código 0x8A150008\nFalha no download do pacote.'
+
+
 class HistoryRevisionTests(unittest.TestCase):
     def test_two_open_windows_keep_both_update_results(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -195,6 +203,106 @@ class DashboardRevisionTests(unittest.TestCase):
         self.app.select_all()
         self.root.update()
         self.assertEqual(dashboard.apps_tree.selection(), (row,))
+
+    def test_filter_actions_fit_at_intermediate_window_sizes(self):
+        for width in (900, 1100, 1200, 1280):
+            with self.subTest(width=width):
+                self.root.geometry(f'{width}x720')
+                self.root.update()
+                button = self.app.select_button
+                self.assertLessEqual(button.winfo_x() + button.winfo_width(),
+                                     button.master.winfo_width())
+
+    def test_long_type_name_does_not_overlap_menu_arrow(self):
+        self.app.dashboard.type_filter.set('Desenvolvimento')
+        self.root.update()
+        choice = self.app.dashboard.type_combo
+        text_items = [item for item in choice.find_all() if choice.type(item) == 'text']
+        self.assertEqual(len(text_items), 1)
+        self.assertEqual(choice.itemcget(text_items[0], 'text'), 'Desenvolvimento')
+        self.assertLessEqual(choice.bbox(text_items[0])[2], choice.winfo_width() - 24)
+
+    def test_initial_window_fits_a_laptop_screen(self):
+        self.root.destroy()
+        self.root = tk.Tk()
+        with patch.object(self.root, 'winfo_screenheight', return_value=768), \
+                patch.object(self.root, 'winfo_screenwidth', return_value=1366):
+            self.app = ATTApp(self.root, FakeClient(), Path(self.directory.name) / 'config.json', autostart=False)
+        self.root.update()
+        self.assertLessEqual(self.root.winfo_height(), 680)
+        self.assertLessEqual(self.root.minsize()[1], 560)
+
+    def test_settings_last_line_can_be_read_in_short_window(self):
+        self.root.geometry('900x560')
+        self.app.dashboard.show('Configurações')
+        self.root.update()
+        text = self.app.dashboard.settings_text
+        self.assertIn('proteção do Windows', text.get('1.0', 'end'))
+        text.yview_moveto(1)
+        self.root.update()
+        self.assertIsNotNone(text.dlineinfo('end-2c'))
+        self.assertLessEqual(text.winfo_rooty() + text.winfo_height(),
+                             self.root.winfo_rooty() + self.root.winfo_height())
+
+    def test_selected_filter_keeps_success_and_failure_results_visible(self):
+        self.app.client = MixedResultsClient()
+        self.app.select_all()
+        self.app.dashboard.status_filter.set('Selecionados')
+        self.app.start_updates()
+        self.wait_idle()
+        self.assertEqual(self.app.statuses, {'0': 'Atualizado', '1': 'Falhou'})
+        self.assertEqual(self.app.tree.get_children(), ('0', '1'))
+
+    def test_new_query_shows_updates_after_selected_filter(self):
+        self.app.select_all()
+        self.app.dashboard.status_filter.set('Selecionados')
+        self.app.refresh()
+        self.wait_idle()
+        self.assertEqual(self.app.dashboard.status_filter.get(), 'Todos os status')
+        self.assertEqual(self.app.tree.get_children(), ('0', '1'))
+
+    def test_retry_selection_only_repeats_failed_packages(self):
+        self.app.client = MixedResultsClient()
+        self.app.select_all()
+        self.app.start_updates()
+        self.wait_idle()
+        self.app.dashboard.retry_button.invoke()
+        self.assertEqual(self.app.selected, {'1'})
+        self.app.client = FakeClient()
+        self.app.start_updates()
+        self.wait_idle()
+        self.assertEqual(self.app.client.calls, ['Acme.Browser'])
+        self.assertEqual(self.app.statuses, {'0': 'Atualizado', '1': 'Atualizado'})
+
+    def test_failure_details_can_be_copied(self):
+        self.app.client = MixedResultsClient()
+        self.app.select_all()
+        self.app.start_updates()
+        self.wait_idle()
+        self.app.tree.selection_set('1')
+        self.root.update()
+        popup = self.app.dashboard.show_package()
+        self.root.update()
+        buttons = [child for frame in popup.winfo_children() for child in frame.winfo_children()
+                   if callable(getattr(child, 'invoke', None)) and child.cget('text') == 'Copiar detalhes']
+        self.assertEqual(len(buttons), 1)
+        buttons[0].invoke()
+        self.assertIn('Acme.Browser', self.root.clipboard_get())
+        self.assertIn('0x8A150008', self.root.clipboard_get())
+
+    def test_short_window_keeps_navigation_and_main_action_visible(self):
+        self.root.geometry('900x520')
+        for view in self.app.dashboard.nav:
+            with self.subTest(view=view):
+                self.app.dashboard.show(view)
+                self.root.update()
+                button = self.app.update_button
+                self.assertLessEqual(button.winfo_rooty() + button.winfo_height(),
+                                     self.root.winfo_rooty() + self.root.winfo_height())
+                for navigation in self.app.dashboard.nav.values():
+                    self.assertTrue(navigation.winfo_ismapped())
+                    self.assertLessEqual(navigation.winfo_rooty() + navigation.winfo_height(),
+                                         self.root.winfo_rooty() + self.root.winfo_height())
 
 
 if __name__ == '__main__':

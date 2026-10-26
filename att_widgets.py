@@ -108,7 +108,8 @@ class RoundedButton(tk.Canvas):
 
     def _paint(self,_event=None):
         self.delete('all')
-        w=max(self.winfo_width(),int(super().cget('width')));h=int(super().cget('height'))
+        w=self.winfo_width() if self.winfo_width()>1 else int(super().cget('width'))
+        h=self.winfo_height() if self.winfo_height()>1 else int(super().cget('height'))
         fill=('#24483E' if self.active else '#101A27') if self.nav else GREEN if self.primary else '#20332E'
         if self.disabled:fill=FIELD
         elif self.hover:fill='#79EAB4' if self.primary else '#29443D'
@@ -117,17 +118,20 @@ class RoundedButton(tk.Canvas):
         if self.nav:
             if self.active:rounded(self,1,5,5,h-5,2,fill=GREEN,outline='')
             icon(self,self.icon_name or 'grid',15,(h-16)/2,GREEN if self.active else MUTED)
-            self.create_text(43,h/2,text=self.text,fill=fg,anchor='w',font=(self.family,-12,'bold' if self.active else 'normal'))
+            self.create_text(43,h/2,text=self.text,fill=fg,anchor='w',font=(self.family,-12,'bold' if self.active else 'normal'),tags='button_text')
         else:
             if self.icon_name:icon(self,self.icon_name,16,(h-16)/2,fg)
             self.create_text(w/2+(9 if self.icon_name else 0),h/2,text=self.text,fill=fg,
-                             font=(self.family,-12,'bold' if self.primary else 'normal'))
+                             font=(self.family,-12,'bold' if self.primary else 'normal'),tags='button_text')
         if self.focus_get()==self:rounded(self,2,2,w-2,h-2,8,outline=GREEN,fill='',width=1)
 
 
 class Choice(RoundedButton):
     def __init__(self,parent,variable,values,width=112,font='Helvetica'):
         self.variable,self.values=variable,values
+        self.minimum_width=width
+        metrics=tkfont.Font(root=parent,family=font,size=-12)
+        width=min(220,max(width,max((metrics.measure(value) for value in (*values,variable.get())),default=0)+40))
         super().__init__(parent,text=variable.get(),command=self.choose,width=width,height=30,font=font)
         self.trace=variable.trace_add('write',lambda *_:self.configure(text=variable.get()))
         self.bind('<Destroy>',self._destroy,add='+')
@@ -135,7 +139,10 @@ class Choice(RoundedButton):
         if event.widget==self:
             self.variable.trace_remove('write',self.trace)
     def configure(self,cnf=None,**kwargs):
-        if 'values' in kwargs:self.values=kwargs.pop('values')
+        if 'values' in kwargs:
+            self.values=kwargs.pop('values')
+            metrics=tkfont.Font(root=self,family=self.family,size=-12)
+            kwargs['width']=min(220,max(self.minimum_width,max((metrics.measure(value) for value in (*self.values,self.variable.get())),default=0)+40))
         return super().configure(cnf,**kwargs)
     def choose(self):
         menu=tk.Menu(self,tearoff=False,bg=FIELD,fg=TEXT,activebackground='#264C3F',activeforeground=TEXT,
@@ -146,7 +153,14 @@ class Choice(RoundedButton):
     def _paint(self,event=None):
         super()._paint(event)
         if hasattr(self,'family'):
-            w=max(self.winfo_width(),int(super().cget('width')))
+            w=self.winfo_width() if self.winfo_width()>1 else int(super().cget('width'))
+            metrics=tkfont.Font(root=self,family=self.family,size=-12)
+            text=self.variable.get()
+            if metrics.measure(text)>max(0,w-36):
+                while text and metrics.measure(text+'…')>max(0,w-36):text=text[:-1]
+                text+='…'
+            self.coords('button_text',12,15)
+            self.itemconfigure('button_text',text=text,anchor='w')
             self.create_line(w-15,13,w-11,17,w-7,13,fill=MUTED,width=1)
 
 

@@ -23,6 +23,24 @@ EMPTY_MESSAGES = {
     "Nenhum pacote instalado foi encontrado que corresponda aos critérios de entrada.",
 }
 
+# HRESULTs do AppInstallerErrors.h; o texto original do winget é mantido abaixo.
+FAILURE_HINTS = {
+    0x8A150008: 'Falha ao baixar o instalador. Confira a conexão e a disponibilidade do servidor do programa.',
+    0x8A15006B: 'Falha ao baixar uma dependência exigida pelo programa.',
+    0x8A150107: 'O instalador informou que está sem conexão de rede.',
+    0x80072EE2: 'O download excedeu o tempo de resposta. Confira a conexão e tente novamente este pacote.',
+    0x80072EE7: 'O endereço do servidor não foi encontrado. Confira a conexão e o DNS.',
+    0x80072EFD: 'Não foi possível conectar ao servidor de download.',
+    0x8A150102: 'Outro instalador está em andamento. Aguarde a conclusão antes de tentar novamente este pacote.',
+    0x80070652: 'O Windows já está executando outra instalação. Aguarde antes de tentar novamente este pacote.',
+    0x8A150041: 'O pacote exige aceitação de termos. Revise a solicitação em um terminal do winget.',
+    0x8A150046: 'A origem exige aceitação de termos. Revise a solicitação em um terminal do winget.',
+    0x8A150076: 'A origem exige autenticação interativa pelo winget.',
+    0x8A150011: 'O arquivo baixado falhou na verificação de integridade. Confira a origem e o distribuidor.',
+    0x8A15002E: 'O tamanho do arquivo baixado não corresponde ao esperado pelo winget.',
+    0x8A15005E: 'O certificado recebido não corresponde ao esperado pelo winget.',
+}
+
 
 class WingetError(RuntimeError):
     pass
@@ -186,4 +204,7 @@ class WingetClient:
             return "Reinício necessário", output
         if code in (NOT_APPLICABLE, ALREADY_INSTALLED):
             return "Sem atualização", output
-        return "Falhou", f"Código 0x{code:08X}\n{output}"
+        hint = FAILURE_HINTS.get(code, 'O winget não concluiu a atualização deste pacote. Consulte o retorno abaixo.')
+        details = (f'Pacote: {package.identifier}\nOrigem: {package.source}\nCódigo 0x{code:08X}\n'
+                   f'{hint}\n\nRetorno do winget:\n{output[-12000:] or "Nenhuma mensagem retornada."}')
+        return "Falhou", details

@@ -7,18 +7,26 @@ pelo `winget`, com seleção manual e atualização automática opcional.
 
 ### Painel principal
 
-![Painel principal do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-painel.png)
+![Painel principal do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-painel.png?v=302cb5caa31e)
 
 ### Histórico de atualizações
 
-![Histórico de atualizações do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-historico.png)
+![Histórico de atualizações do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-historico.png?v=15420d38419a)
 
 ### Aplicativos instalados
 
-![Lista de aplicativos instalados no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-aplicativos.png)
+![Lista de aplicativos instalados no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-aplicativos.png?v=a647cbff9fe1)
 
 Layout de 1280 × 720 baseado na referência visual, com painéis, botões e tabela vetoriais arredondados. As capturas usam dados de exemplo
 em uma tela virtual Linux; fontes e elementos nativos podem variar no Windows.
+
+### Falhas preservadas na lista
+
+![Resultado de atualização e falha no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-falhas.png?v=0132ec719896)
+
+### Textos acessíveis em janela menor
+
+![Configurações do ATT com rolagem](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-configuracoes.png?v=def39fb7e58f)
 
 ## Requisitos e execução
 
@@ -64,7 +72,9 @@ A consulta inicia ao abrir. No modo manual, os pacotes começam desmarcados.
 Clique em `[ ]` ou use Espaço na linha para marcar um programa.
 **Selecionar todos** inclui todos os pacotes elegíveis, inclusive os ocultos pelos
 filtros. Quando todos estão marcados, o botão passa a **Limpar seleção**. A caixa
-do cabeçalho também alterna essas duas ações.
+do cabeçalho também alterna essas duas ações. O filtro **Selecionados** preserva
+os resultados da última execução até que a seleção seja modificada. Ao verificar
+novamente, esse filtro volta a **Todos os status** para mostrar a nova consulta.
 
 **Atualizar N selecionados** inicia a fila em sequência. A central de execução
 mostra os programas, seus estados e o progresso por quantidade de pacotes
@@ -75,7 +85,9 @@ Uma falha não impede a tentativa dos próximos pacotes. Ao concluir, use
 Aplicativos e versões são fotografias da consulta, não um monitoramento contínuo.
 
 Clique no ícone de informação da linha ou pressione Enter na linha para abrir os detalhes do pacote. Uma consulta que falhou permite abrir os detalhes clicando na mensagem central da tabela. Os resultados completos
-retidos podem ser consultados no Histórico. Não há busca nem instalação de
+retidos podem ser consultados no Histórico. A janela de detalhes tem rolagem e
+o botão **Copiar detalhes**. **Selecionar falhas** marca apenas os pacotes que
+falharam; clique em **Atualizar selecionados** para repetir somente essas tentativas. Não há busca nem instalação de
 programas novos nesta versão.
 
 ## Automação e interrupção
@@ -106,7 +118,9 @@ O painel não exige execução como administrador; instaladores podem solicitar
 permissão pelo Windows. A instalação é silenciosa, e contratos não são aceitos
 automaticamente. Para exigências de interação, contratos ou problemas nas origens,
 revise os detalhes e execute `winget upgrade` em um terminal para resolver as
-solicitações apresentadas pelo próprio winget.
+solicitações apresentadas pelo próprio winget. Os detalhes preservam o código e
+a mensagem original, com orientações para erros conhecidos de download e instalador
+ocupado. Consulte [Menus e falhas](Doc/Menus-e-falhas.md) para os casos corrigidos.
 
 A leitura depende da tabela de saída do winget. Formatos não reconhecidos geram
 erro; identificadores truncados ou ambíguos são bloqueados para atualização.

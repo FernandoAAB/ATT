@@ -54,6 +54,31 @@ class WingetContractTests(unittest.TestCase):
             'winget', 'upgrade', '--id', 'Acme.Editor', '--exact', '--source', 'company',
             '--silent', '--disable-interactivity'])
 
+    def test_download_failure_has_package_diagnostic_and_original_message(self):
+        response = subprocess.CompletedProcess(['winget'], 0x8A150008,
+                                               stdout='HTTP 503: servidor indisponível', stderr='')
+        with patch('att_backend.subprocess.run', return_value=response):
+            status, details = WingetClient().upgrade(Package('Editor', 'Acme.Editor', '1', '2', 'winget'))
+        self.assertEqual(status, 'Falhou')
+        self.assertIn('Acme.Editor', details)
+        self.assertIn('0x8A150008', details)
+        self.assertIn('baixar', details)
+        self.assertIn('HTTP 503', details)
+
+    def test_known_installer_failures_keep_different_diagnostics(self):
+        for code, expected in ((0x8A150102, 'Outro instalador'),
+                               (0x8A150041, 'termos'),
+                               (0x8A150011, 'integridade')):
+            with self.subTest(code=code):
+                response = subprocess.CompletedProcess(['winget'], code, stdout='Detalhe original', stderr='')
+                with patch('att_backend.subprocess.run', return_value=response) as command:
+                    status, details = WingetClient().upgrade(Package('Editor', 'Acme.Editor', '1', '2', 'winget'))
+                self.assertEqual(status, 'Falhou')
+                self.assertIn(expected, details)
+                self.assertIn('Detalhe original', details)
+                self.assertNotIn('--ignore-security-hash', command.call_args.args[0])
+                self.assertNotIn('--accept-package-agreements', command.call_args.args[0])
+
 
 class HistoryContractTests(unittest.TestCase):
     def test_history_retains_latest_thousand_attempts_after_restart(self):

@@ -37,6 +37,7 @@ class ATTApp:
         self.completed = 0
         self.total = 0
         self.run_keys = []
+        self.selection_changed_since_run = True
         self._timers = set()
         self.last_output = "Selecione um pacote para consultar seu status e os detalhes da execução."
         enabled, warning = load_preferences(preference_path)
@@ -108,6 +109,12 @@ class ATTApp:
         self.clear_button.configure(state="normal" if idle and self.selected else "disabled")
         self.update_button.configure(state="normal" if idle and self.selected else "disabled")
         self.stop_button.configure(state="normal" if self.busy == "update" and not self.stop_requested.is_set() else "disabled")
+        has_failures = any(status == 'Falhou' for status in self.statuses.values())
+        self.dashboard.retry_button.configure(state='normal' if idle and has_failures else 'disabled')
+        if has_failures:
+            self.dashboard.retry_button.pack(side='right')
+        else:
+            self.dashboard.retry_button.pack_forget()
         self.dashboard.update()
 
     def _render_rows(self):
@@ -140,6 +147,7 @@ class ATTApp:
     def _toggle(self, key):
         if self.busy or not key or not self._eligible(key):
             return
+        self.selection_changed_since_run = True
         if key in self.selected:
             self.selected.remove(key)
         else:
@@ -178,13 +186,27 @@ class ATTApp:
 
     def select_all(self):
         if not self.busy:
+            self.selection_changed_since_run = True
             self.selected = {key for key in self.packages if self._eligible(key)}
             self._render_rows()
 
     def clear_selection(self):
         if not self.busy:
+            self.selection_changed_since_run = True
             self.selected.clear()
             self._render_rows()
+
+    def select_failed(self):
+        if self.busy:
+            return
+        self.selected = {key for key in self.packages if self.statuses[key] == 'Falhou' and self._eligible(key)}
+        self.selection_changed_since_run = True
+        self.filter_text.set('')
+        self.dashboard.source_filter.set('Todas as origens')
+        self.dashboard.type_filter.set('Todos os tipos')
+        self.dashboard.status_filter.set('Selecionados')
+        self._render_rows()
+        self.status_text.set('Falhas selecionadas. Clique em Atualizar selecionados para tentar novamente.')
 
     def refresh(self, automatic=False):
         if self.busy:
@@ -197,11 +219,14 @@ class ATTApp:
         self.completed = 0
         self.total = 0
         self.run_keys = []
+        self.selection_changed_since_run = True
         self.checked = False
         self.query_failed = False
         self.installed = None
         self.inventory_error = ""
         self.dashboard.source_filter.set("Todas as origens")
+        if self.dashboard.status_filter.get() == 'Selecionados':
+            self.dashboard.status_filter.set('Todos os status')
         self.last_output = "Consultando atualizações com o winget…"
         self.status_text.set(self.last_output)
         self.progress_text.set("Buscando versões disponíveis…")
@@ -235,6 +260,7 @@ class ATTApp:
         self.completed = 0
         self.total = len(keys)
         self.run_keys = keys
+        self.selection_changed_since_run = False
         self.progress.configure(mode="determinate", maximum=self.total, value=0)
         self.progress_text.set(f"0 de {self.total} processados")
         for key in keys:
