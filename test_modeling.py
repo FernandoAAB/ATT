@@ -65,6 +65,21 @@ class WingetContractTests(unittest.TestCase):
         self.assertIn('baixar', details)
         self.assertIn('HTTP 503', details)
 
+    def test_epson_404_explains_missing_file_and_source_refresh(self):
+        output = ('Baixando https://download.epson-europe.com/pub/download/6741/epson674187eu.exe\n'
+                  'Download request status is not success.\n0x80190194 : Não encontrado (404).')
+        for code in (0x80190194, 0x8A150008):
+            with self.subTest(code=code):
+                response = subprocess.CompletedProcess(['winget'], code, stdout=output, stderr='')
+                with patch('att_backend.subprocess.run', return_value=response):
+                    status, details = WingetClient().upgrade(
+                        Package('EpsonNet Print', 'EPSON.EpsonNetPrint', '3.1.0', '3.3.1', 'winget'))
+                self.assertEqual(status, 'Falhou')
+                self.assertIn('HTTP 404', details)
+                self.assertIn('winget source update', details)
+                self.assertIn('EPSON.EpsonNetPrint', details)
+                self.assertIn('0x80190194', details)
+
     def test_known_installer_failures_keep_different_diagnostics(self):
         for code, expected in ((0x8A150102, 'Outro instalador'),
                                (0x8A150041, 'termos'),

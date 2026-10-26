@@ -122,6 +122,9 @@ solicitações apresentadas pelo próprio winget. Os detalhes preservam o códig
 a mensagem original, com orientações para erros conhecidos de download e instalador
 ocupado. Consulte [Menus e falhas](Doc/Menus-e-falhas.md) para os casos corrigidos.
 
+Para o erro **EpsonNet Print — HTTP 404 (`0x80190194`)**, consulte
+[o diagnóstico e os comandos para atualizar o catálogo](Doc/EpsonNetPrint-404.md).
+
 A leitura depende da tabela de saída do winget. Formatos não reconhecidos geram
 erro; identificadores truncados ou ambíguos são bloqueados para atualização.
 O ATT informa quando uma instalação exige reinicialização, sem reiniciar o computador.

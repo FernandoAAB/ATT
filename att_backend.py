@@ -15,6 +15,8 @@ NO_APPLICATIONS = 0x8A150014
 NOT_APPLICABLE = 0x8A15002B
 REBOOT_REQUIRED = 0x8A150109
 ALREADY_INSTALLED = 0x8A15010D
+DOWNLOAD_FAILED = 0x8A150008
+HTTP_NOT_FOUND = 0x80190194
 ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+\-]*\Z")
 # Mensagens do winget que também podem acompanhar saída 0 sem tabela.
@@ -25,7 +27,11 @@ EMPTY_MESSAGES = {
 
 # HRESULTs do AppInstallerErrors.h; o texto original do winget é mantido abaixo.
 FAILURE_HINTS = {
-    0x8A150008: 'Falha ao baixar o instalador. Confira a conexão e a disponibilidade do servidor do programa.',
+    DOWNLOAD_FAILED: 'Falha ao baixar o instalador. Confira a conexão e a disponibilidade do servidor do programa.',
+    HTTP_NOT_FOUND: ('Arquivo do instalador não encontrado no servidor (HTTP 404). '
+                     'O endereço fornecido pelo catálogo pode estar desatualizado ou indisponível. '
+                     'Execute winget source update em um terminal e tente novamente somente este pacote. '
+                     'Se persistir, o link precisa ser corrigido pelo catálogo ou distribuidor.'),
     0x8A15006B: 'Falha ao baixar uma dependência exigida pelo programa.',
     0x8A150107: 'O instalador informou que está sem conexão de rede.',
     0x80072EE2: 'O download excedeu o tempo de resposta. Confira a conexão e tente novamente este pacote.',
@@ -204,7 +210,10 @@ class WingetClient:
             return "Reinício necessário", output
         if code in (NOT_APPLICABLE, ALREADY_INSTALLED):
             return "Sem atualização", output
-        hint = FAILURE_HINTS.get(code, 'O winget não concluiu a atualização deste pacote. Consulte o retorno abaixo.')
+        hint_code = code
+        if code == DOWNLOAD_FAILED and re.search(r'\b0x80190194\b', output, flags=re.IGNORECASE):
+            hint_code = HTTP_NOT_FOUND
+        hint = FAILURE_HINTS.get(hint_code, 'O winget não concluiu a atualização deste pacote. Consulte o retorno abaixo.')
         details = (f'Pacote: {package.identifier}\nOrigem: {package.source}\nCódigo 0x{code:08X}\n'
                    f'{hint}\n\nRetorno do winget:\n{output[-12000:] or "Nenhuma mensagem retornada."}')
         return "Falhou", details
