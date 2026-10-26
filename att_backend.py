@@ -8,6 +8,8 @@ import re
 import subprocess
 import unicodedata
 
+from att_storage import write_json
+
 
 NO_APPLICATIONS = 0x8A150014
 NOT_APPLICABLE = 0x8A15002B
@@ -59,13 +61,7 @@ def load_preferences(path=None):
 
 def save_preferences(enabled, path=None):
     target = Path(path) if path is not None else config_path()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_suffix(".tmp")
-    try:
-        temporary.write_text(json.dumps({"auto_update": bool(enabled)}, indent=2), encoding="utf-8")
-        temporary.replace(target)
-    finally:
-        temporary.unlink(missing_ok=True)
+    write_json(target, {"auto_update": bool(enabled)})
 
 
 def _display_columns(text):

@@ -372,32 +372,71 @@ class Dashboard:
             note=f'Hoje, {checked.day} de {months[checked.month-1]}' if checked.date()==datetime.now().astimezone().date() else checked.strftime('%d/%m/%Y')
             self.check_note.configure(text=note)
         else:self.check_note.configure(text='Ainda não verificado')
-        self.execution_state.configure(text='EM EXECUÇÃO' if a.busy == 'update' else 'VERIFICANDO' if a.busy else 'EM ESPERA')
-        a.update_button.configure(text=f'Atualizar {len(a.selected)} selecionados' if a.selected else 'Atualizar selecionados')
-        eligible={key for key in a.packages if a._eligible(key)}
-        a.select_button.configure(text='Limpar seleção' if eligible and eligible<=a.selected else 'Selecionar todos')
-        selected = [key for key in a.packages if key in a.selected]
-        keys = a.run_keys if a.busy == 'update' else selected or (a.run_keys if a.completed else [])
-        self.queue_count.configure(text=f'{len(keys)} programas selecionados' if keys else 'Nenhum programa selecionado')
-        self.queue_list.configure(state='normal')
-        self.queue_list.delete('1.0', 'end')
-        for index,key in enumerate(keys):
-            if key not in a.packages:continue
-            self.queue_list.insert('end', ('●  ' if index==0 else '◆  ')+a.packages[key].name+'\n','name')
-            state='Pronto para iniciar' if index==0 and not a.busy else 'Aguardando' if a.statuses[key]=='Pendente' else a.statuses[key]
-            self.queue_list.insert('end',state+'\n\n','detail')
-        self.queue_list.configure(state='disabled')
-        self.percent.configure(text=f'{round(a.completed / a.total * 100) if a.total else 0}%')
+        self._render_execution()
         origins = ('Todas as origens', *sorted({p.source for p in a.packages.values() if p.source}))
         self.source_combo.configure(values=origins)
         self.render_apps()
         self.render_history()
 
+    def _render_execution(self):
+        a = self.app
+        selected = [key for key in a.packages if key in a.selected]
+        active = a.busy == 'update'
+        finished = not a.busy and not selected and a.completed > 0
+        if active:
+            state = 'EM EXECUÇÃO'
+        elif a.busy:
+            state = 'VERIFICANDO'
+        elif finished:
+            state = 'INTERROMPIDA' if a.stop_requested.is_set() and a.completed < a.total else 'CONCLUÍDA'
+        else:
+            state = 'EM ESPERA'
+        self.execution_state.configure(text=state)
+        a.update_button.configure(text=f'Atualizar {len(a.selected)} selecionados' if a.selected else 'Atualizar selecionados')
+        eligible = {key for key in a.packages if a._eligible(key)}
+        a.select_button.configure(text='Limpar seleção' if eligible and eligible <= a.selected else 'Selecionar todos')
+        keys = a.run_keys if active or finished else selected
+        if finished:
+            label = f'{a.completed} de {a.total} processados'
+        elif active:
+            label = f'{len(keys)} programas na fila'
+        else:
+            label = f'{len(keys)} programas selecionados' if keys else 'Nenhum programa selecionado'
+        self.queue_count.configure(text=label)
+        self.queue_list.configure(state='normal')
+        self.queue_list.delete('1.0', 'end')
+        for index, key in enumerate(keys):
+            if key not in a.packages:
+                continue
+            self.queue_list.insert('end', ('●  ' if index == 0 else '◆  ') + a.packages[key].name + '\n', 'name')
+            status = a.statuses[key]
+            if status == 'Pendente':
+                status = 'Pronto para iniciar' if index == 0 and not a.busy else 'Aguardando'
+            elif status == 'Na fila':
+                status = 'Aguardando'
+            self.queue_list.insert('end', status + '\n\n', 'detail')
+        self.queue_list.configure(state='disabled')
+        processed = a.completed if active or finished else 0
+        total = a.total if active or finished else len(selected)
+        self.percent.configure(text=f'{round(processed / total * 100) if total else 0}%')
+        if not a.busy:
+            a.progress.configure(maximum=max(1, total), value=processed)
+            if selected:
+                a.progress_text.set('A próxima fila ainda não foi iniciada.')
+            elif finished:
+                a.progress_text.set(f'{a.completed} de {a.total} processados')
+
     def render_apps(self):
         if not hasattr(self, 'apps_tree'):
             return
-        self.apps_tree.delete(*self.apps_tree.get_children())
         query = self.apps_filter.get().casefold().strip()
+        inventory = self.app.installed
+        signature = (query, self.app.inventory_error, inventory is None,
+                     tuple((p.name, p.identifier, p.installed, p.source) for p in inventory or []))
+        if getattr(self, '_inventory_signature', None) == signature:
+            return
+        self._inventory_signature = signature
+        self.apps_tree.delete(*self.apps_tree.get_children())
         for package in sorted(self.app.installed or [], key=lambda p: p.name.casefold()):
             if not query or query in (package.name + ' ' + package.identifier).casefold():
                 self.apps_tree.insert('', 'end', values=(package.name, package.identifier, package.installed, package.source or 'Não informada'))

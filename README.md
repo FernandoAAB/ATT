@@ -33,7 +33,7 @@ python main.py
 ```
 
 Não há dependências para instalar com pip. Mantenha os módulos `att_backend.py`,
-`att_dashboard.py`, `att_widgets.py` e `att_history.py` junto ao `main.py`.
+`att_dashboard.py`, `att_widgets.py`, `att_history.py` e `att_storage.py` junto ao `main.py`.
 O arquivo `Atualizador.exe` incluído no repositório é a versão anterior;
 **ele não contém este novo painel**. Use o código Python até que um novo executável
 seja gerado no Windows.
@@ -97,6 +97,10 @@ O arquivo `%LOCALAPPDATA%\ATT\history.json` guarda a última verificação e at�
 preferências e permanece entre aberturas. Um arquivo de histórico inválido é
 preservado, e o painel avisa que não conseguiu carregar/salvar os registros.
 Uma falha de gravação não muda o resultado informado pelo instalador.
+As gravações do histórico são coordenadas entre janelas e preservam os resultados
+de cada uma. Registros pendentes após um erro são tentados novamente na próxima
+gravação ou verificação, enquanto a janela continuar aberta. O arquivo
+`history.lock` na mesma pasta é usado nessa coordenação e pode permanecer lá.
 
 O painel não exige execução como administrador; instaladores podem solicitar
 permissão pelo Windows. A instalação é silenciosa, e contratos não são aceitos
@@ -113,6 +117,8 @@ O ATT informa quando uma instalação exige reinicialização, sem reiniciar o c
 As definições do domínio estão em [GLOSSARY.md](GLOSSARY.md). A revisão baseada em
 `mattpocock/skills`, os contratos exercitados e os cenários de estresse estão em
 [Modelagem e cenários de estresse](Doc/Modelagem.md).
+A seleção de skills dos dois repositórios, os bugs reproduzidos e as mudanças de
+organização estão em [Revisão de desenvolvimento](Doc/Desenvolvimento-skills.md).
 
 ```powershell
 python -m unittest -v
