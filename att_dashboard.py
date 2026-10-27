@@ -3,7 +3,8 @@ from datetime import datetime
 import platform
 import tkinter as tk
 from tkinter import font as tkfont, ttk
-from att_widgets import RoundedPanel, RoundedButton, Choice, Toggle, Search, UpdateTable, rounded
+from att_widgets import RoundedPanel, RoundedButton, Choice, Toggle, Search, UpdateTable, rounded, icon
+from att_icons import app_images
 
 BG = '#0C111B'
 PANEL = '#18232D'
@@ -37,6 +38,8 @@ class Dashboard:
         a, root = self.app, self.app.root
         self.font = 'Segoe UI' if 'Segoe UI' in tkfont.families(root) else 'Helvetica'
         root.title('ATT — Central de atualizações')
+        self.window_icons = app_images(root)
+        root.iconphoto(True, *self.window_icons)
         available_width=max(640,root.winfo_screenwidth()-64)
         available_height=max(420,root.winfo_screenheight()-96)
         root.geometry(f'{min(1280,available_width)}x{min(720,available_height)}')
@@ -67,8 +70,8 @@ class Dashboard:
         self.label(top,'ATT',14,bg='#121C25',bold=True).pack(side='left')
         self.label(top,' / Central de Atualizações',11,MUTED,'#121C25').pack(side='left')
         lights=tk.Canvas(top,width=34,height=20,bg='#121C25',highlightthickness=0)
-        lights.pack(side='right',padx=(32,16));lights.create_oval(4,5,14,15,fill=GREEN,outline='')
-        lights.create_oval(23,8,27,12,fill='#71818F',outline='')
+        lights.pack(side='right',padx=(32,16));icon(lights,'dot',4,5,GREEN,10)
+        icon(lights,'dot',23,8,'#71818F',4)
         self.label(top,f'{platform.system()} {platform.release()}  ·  Este computador',10,MUTED,'#121C25').pack(side='right')
 
         side=tk.Frame(root,bg='#101A27',width=180)
@@ -129,10 +132,10 @@ class Dashboard:
             card.grid(row=0,column=index,sticky='nsew',padx=(0 if index==0 else 6,0 if index==3 else 6));card.grid_propagate(False)
             symbol=tk.Canvas(card,width=30,height=30,bg=PANEL,highlightthickness=0)
             symbol.place(x=16,y=16);rounded(symbol,0,0,30,30,7,fill='#233640',outline='')
-            symbol.create_oval(9,9,21,21,fill=color,outline='')
-            self.label(card,title,8,MUTED).place(x=53,y=14)
+            icon(symbol,'dot',9,9,color,12)
+            self.label(card,title,9,MUTED).place(x=53,y=14)
             value=self.label(card,'—',26,TEXT,bold=True);value.place(x=14,y=44)
-            note_label=self.label(card,note,9,MUTED)
+            note_label=self.label(card,note,10,MUTED)
             note_label.place(x=88 if index==3 else 76,y=63)
             if index==3:self.check_note=note_label
             self.values.append(value)
@@ -210,7 +213,7 @@ class Dashboard:
         self.compact_progress=self.label(self.options,'Pronto para iniciar',size=9,color=MUTED)
         self.auto_toggle=Toggle(self.options,a.auto_update,a._save_preference,'Atualizar ao abrir o ATT',font=self.font,width=270)
         self.auto_toggle.place(x=18,y=40)
-        self.auto_note=self.label(self.options,'Verificar automaticamente ao iniciar o programa',9,MUTED)
+        self.auto_note=self.label(self.options,'Atualizar os pendentes ao iniciar',9,MUTED)
         self.auto_note.place(x=53,y=70)
         a.stop_button=Toggle(self.options,self.stop_toggle,a.request_stop,'Parar após este pacote',font=self.font,switch=False,width=250)
         a.stop_button.place(x=350,y=40)

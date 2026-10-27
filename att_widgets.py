@@ -94,7 +94,9 @@ class RoundedButton(tk.Canvas):
             icon(self,self.icon_name or 'grid',13,(h-20)/2,GREEN if self.active else MUTED,20)
             self.create_text(43,h/2,text=self.text,fill=fg,anchor='w',font=(self.family,-13,'bold' if self.active else 'normal'),tags='button_text')
         else:
-            if self.icon_name:icon(self,self.icon_name,16,(h-16)/2,fg)
+            if self.icon_name:
+                size=20 if self.primary else 16
+                icon(self,self.icon_name,16,(h-size)/2,fg,size)
             self.create_text(w/2+(9 if self.icon_name else 0),h/2,text=self.text,fill=fg,
                              font=(self.family,-12,'bold' if self.primary else 'normal'),tags='button_text')
         if self.focus_get()==self:rounded(self,2,2,w-2,h-2,8,outline=GREEN,fill='',width=1)
@@ -135,7 +137,7 @@ class Choice(RoundedButton):
                 text+='…'
             self.coords('button_text',12,15)
             self.itemconfigure('button_text',text=text,anchor='w')
-            self.create_line(w-15,13,w-11,17,w-7,13,fill=MUTED,width=1)
+            icon(self,'chevron',w-25,7,MUTED,16)
 
 
 class Toggle(tk.Canvas):
@@ -159,11 +161,10 @@ class Toggle(tk.Canvas):
     def paint(self):
         self.delete('all');on=self.variable.get();c=GREEN if on else '#344552'
         if self.switch:
-            rounded(self,1,6,28,21,8,fill=c,outline='')
-            self.create_oval(15 if on else 3,8,25 if on else 13,18,fill='#D8F8E8' if on else '#80919C',outline='')
+            icon(self,'toggle_track',0,-3,c,32)
+            icon(self,'dot',17 if on else 3,8,'#D8F8E8' if on else '#80919C',10)
         else:
-            rounded(self,4,6,19,21,3,fill=FIELD,outline='#40515E')
-            if on:self.create_line(7,13,11,17,17,9,fill=GREEN,width=2)
+            icon(self,'checked' if on else 'checkbox',4,5,GREEN if on else '#697B89',16)
         self.create_text(36 if self.switch else 29,13,text=self.text,anchor='w',
                          fill='#687C88' if self.disabled else TEXT,font=(self.family,-11))
 
@@ -176,7 +177,7 @@ class Search(tk.Frame):
         canvas.place(x=0,y=0,relwidth=1,relheight=1)
         def paint(event):
             canvas.delete('all');rounded(canvas,1,1,event.width-1,29,6,fill='#0E1A24',outline='#2B3A44')
-            icon(canvas,'search',10,7,MUTED,15)
+            icon(canvas,'search',10,7,MUTED,16)
         canvas.bind('<Configure>',paint)
         entry=tk.Entry(self,textvariable=variable,bg='#0E1A24',fg=TEXT,insertbackground=TEXT,
                         relief='flat',font=(font,-11),highlightthickness=0)
@@ -271,10 +272,9 @@ class UpdateTable(tk.Canvas):
         w,h=self.winfo_width(),self.winfo_height()
         if w<10:return
         rounded(self,0,0,w,29,5,fill=FIELD,outline='')
-        rounded(self,15,11,22,18,1,fill=PANEL,outline='#6F808A')
         eligible=[values for values in self.rows.values() if values[0]!='—']
-        if eligible and all(values[0]=='[x]' for values in eligible):
-            self.create_line(16,14,18,17,22,11,fill=GREEN,width=1.2)
+        all_checked=bool(eligible) and all(values[0]=='[x]' for values in eligible)
+        icon(self,'checked' if all_checked else 'checkbox',11,6,GREEN if all_checked else MUTED,16)
         for x,label in ((46,'APLICATIVO'),(w*.445,'INSTALADA'),(w*.59,'DISPONÍVEL'),(w*.745,'STATUS')):
             self.create_text(x,14,text=label,anchor='w',fill=MUTED,font=(self.family,-9))
         visible=max(1,(h-30)//38)
@@ -283,8 +283,8 @@ class UpdateTable(tk.Canvas):
             check,name,installed,available,status=values;y=30+index*38
             if key in self.selected:self.create_rectangle(0,y,w,y+38,fill='#1B2B35',outline='')
             self.create_line(10,y+38,w-10,y+38,fill='#23313B')
-            rounded(self,15,y+15,22,y+22,1,fill='#183A30' if check=='[x]' else PANEL,outline='#5A7C75' if check=='[x]' else '#576A77')
-            if check=='[x]':self.create_line(16,y+18,18,y+21,22,y+15,fill=GREEN,width=1.2)
+            symbol='minus' if check=='—' else 'checked' if check=='[x]' else 'checkbox'
+            icon(self,symbol,11,y+12,GREEN if check=='[x]' else '#697B89' if check=='—' else MUTED,16)
             identifier=getattr(self,'identifiers',{}).get(key,'')
             color={'Google.Chrome':'#D0B973','Microsoft.VisualStudioCode':'#7DB5E0','Mozilla.Firefox':'#A4A4D0'}.get(identifier,'#8FC7C3')
             letter={'Google.Chrome':'C','Mozilla.Firefox':'F','Microsoft.VisualStudioCode':'V'}.get(identifier,name[0].upper())
@@ -301,7 +301,7 @@ class UpdateTable(tk.Canvas):
             pillw=min(w*.16,104)
             rounded(self,w*.745,y+10,w*.745+pillw,y+30,10,fill=fill,outline='')
             self.create_text(w*.745+8,y+20,text=self._short(label,pillw-12,-9),anchor='w',fill=fg,font=(self.family,-9))
-            icon(self,'info',w-23,y+14,MUTED,12)
+            icon(self,'info',w-25,y+12,MUTED,16)
         if len(self.rows)>visible:
             self.create_rectangle(w-3,32,w-1,h-3,fill=FIELD,outline='')
             top=32+(h-38)*self.offset/len(self.rows)

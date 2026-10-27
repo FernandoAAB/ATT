@@ -98,3 +98,53 @@ As cinco prévias do README foram refeitas com dados de exemplo. Não houve
 instalação real neste ambiente Linux; os downloads, as perguntas no terminal e a
 nitidez nativa precisam ser confirmados no Windows. O executável antigo não foi
 recompilado e não contém estas mudanças.
+
+## Revisão dos marcadores dos cartões
+
+Nas fotos seguintes, a consulta encontrou 128 programas e 2 atualizações. Os
+marcadores circulares dos cartões ainda usavam `Canvas.create_oval`, assim como
+os indicadores do cabeçalho e o botão circular do interruptor. Esses elementos
+passaram a usar máscaras suavizadas de 4, 10 e 12 pixels, no tamanho final.
+Os títulos e as legendas dos cartões aumentaram um pixel para facilitar a leitura.
+O layout permanece o mesmo.
+
+A legenda de “Atualizar ao abrir o ATT” também foi ajustada: a opção instala os
+pendentes ao iniciar, conforme o comportamento já documentado; a consulta ocorre
+mesmo quando ela está desativada.
+
+Fotografar o monitor pode acrescentar faixas, moiré e distorção às letras. Para
+investigar um desfoque persistente das fontes, é necessária uma captura digital
+com `Win + Shift + S`, além de conferir a resolução recomendada pelo Windows.
+As fotos não estabelecem que o DPI seja a causa do problema.
+
+## Ícone de verificar atualizações
+
+O arco com uma ponta pouco definida foi substituído por duas setas circulares.
+No botão “Verificar atualizações”, o ícone passa de 16 para 20 pixels, usando a
+máscara gerada nesse tamanho. Os demais tamanhos também foram regenerados.
+A ação do botão permanece a consulta do winget. As cinco prévias foram refeitas;
+20 testes existentes de interface, execução e exibição passaram em Tk/Xvfb.
+A captura com dados de exemplo não substitui a conferência visual no Windows.
+
+## Desenho e alinhamento dos símbolos
+
+A revisão seguinte mantém as fontes, os tamanhos das letras e os textos do
+programa. Configurações passa a usar uma engrenagem com dentes; Aplicativos,
+uma janela. O símbolo de visão geral foi centralizado dentro da mesma área de
+20 pixels usada pelas demais abas. Os botões principais usam ícones de 20 pixels.
+
+Os seletores da tabela passam a 16 pixels e seguem a mesma coluna do seletor do
+cabeçalho. O símbolo de informação também passa a 16 pixels, mantendo o centro
+vertical dos dados da linha e a área de clique existente. Itens indisponíveis
+para seleção exibem um traço, sem sugerir uma caixa que possa ser marcada.
+Busca, setas dos filtros e controles de execução também foram centralizados.
+O interruptor usa uma trilha suavizada e margens iguais para o botão circular.
+
+As janelas recebem o ícone A do ATT, em 16 e 32 pixels, substituindo o ícone
+padrão do Tk. As imagens ficam no módulo gerado `att_icon_data.py`; nenhuma
+dependência de execução foi acrescentada. As máscaras continuam sendo geradas
+pelo script `tools/build_icons.py`, com espessura proporcional ao tamanho final.
+
+A suíte existente de 65 testes passou em Tk/Xvfb, e as cinco prévias foram
+regeneradas. Essa validação não executa instaladores nem substitui a conferência
+da aparência nativa no Windows.

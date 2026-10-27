@@ -7,26 +7,26 @@ pelo `winget`, com seleção manual e atualização automática opcional.
 
 ### Painel principal
 
-![Painel principal do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-painel.png?v=e7d5bacbce55)
+![Painel principal do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-painel.png?v=a587c7ef9d12)
 
 ### Histórico de atualizações
 
-![Histórico de atualizações do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-historico.png?v=882f70561db8)
+![Histórico de atualizações do ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-historico.png?v=d6b18db6692b)
 
 ### Aplicativos instalados
 
-![Lista de aplicativos instalados no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-aplicativos.png?v=02b80fcfdd9d)
+![Lista de aplicativos instalados no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-aplicativos.png?v=76486b2f0649)
 
 Layout de 1280 × 720 baseado na referência visual, com painéis e botões arredondados e ícones suavizados. As capturas usam dados de exemplo
 em uma tela virtual Linux; fontes e elementos nativos podem variar no Windows.
 
 ### Falhas preservadas na lista
 
-![Resultado de atualização e falha no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-falhas.png?v=d278d00912fa)
+![Resultado de atualização e falha no ATT](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-falhas.png?v=33a069a50fa7)
 
 ### Textos acessíveis em janela menor
 
-![Configurações do ATT com rolagem](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-configuracoes.png?v=288fdd696760)
+![Configurações do ATT com rolagem](https://raw.githubusercontent.com/FernandoAAB/ATT/main/Doc/Previa-configuracoes.png?v=b658e2c8b5b3)
 
 ## Requisitos e execução
 

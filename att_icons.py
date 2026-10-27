@@ -4,7 +4,11 @@ import struct
 import tkinter as tk
 import zlib
 
-from att_icon_data import MASKS
+from att_icon_data import BRAND_IMAGES, MASKS
+
+
+def app_images(master):
+    return tuple(tk.PhotoImage(master=master, data=BRAND_IMAGES[size], format='png') for size in (32, 16))
 
 
 def image_for(canvas, name, color, size):
